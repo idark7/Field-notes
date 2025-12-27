@@ -1,3 +1,0 @@
-DATABASE_URL_devEnv="postgresql://postgres:1@localhost:5431/postgres?schema=gdt_field_notes"
-JWT_SECRET="dev-local-secret"
-DATABASE_URL="postgres://5e2dd4ead970238187086dc79174c851c409b3c1c1c71e433e5c9e85f4d76618:sk_5MjU_TUU70ygRMuV_MdOy@db.prisma.io:5432/postgres?schema=gdt_field_notes&sslmode=require&pool=true"
