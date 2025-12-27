@@ -23,14 +23,15 @@ async function updateStatus(formData: FormData) {
     return;
   }
 
-  await prisma.post.update({
+  const post = await prisma.post.update({
     where: { id: postId },
     data: { status: status as any },
+    select: { revision: true },
   });
 
   if (note) {
     await prisma.adminNote.create({
-      data: { postId, adminId: user.id, text: note },
+      data: { postId, adminId: user.id, text: note, revision: post.revision },
     });
   }
 

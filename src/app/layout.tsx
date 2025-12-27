@@ -27,6 +27,21 @@ export const metadata: Metadata = {
   description: "Media-driven travel essays and field notes.",
 };
 
+type NotificationItem = {
+  id: string;
+  title: string;
+  message: string;
+  createdAt: string;
+  href: string;
+};
+
+type NotificationSummary = {
+  pendingReview?: number;
+  likes?: number;
+  shares?: number;
+  comments?: number;
+};
+
 function getInitials(name: string) {
   return name
     .split(" ")
@@ -42,14 +57,77 @@ export default async function RootLayout({
   children: React.ReactNode;
 }>) {
   const user = await getSessionUser();
-  const notifications = user
-    ? await prisma.adminNote.findMany({
-        where: { post: { authorId: user.id } },
-        orderBy: { createdAt: "desc" },
-        take: 5,
-        include: { post: true },
-      })
-    : [];
+  const notificationData: { items: NotificationItem[]; summary?: NotificationSummary } = user
+    ? await (async () => {
+        if (user.role === "ADMIN") {
+          const [pendingReview, likes, shares, comments] = await Promise.all([
+            prisma.post.count({ where: { status: "PENDING" } }),
+            prisma.like.count(),
+            prisma.like.count({ where: { post: { author: { role: "ADMIN" } } } }),
+            prisma.comment.count(),
+          ]);
+
+          return {
+            items: [],
+            summary: {
+              pendingReview,
+              likes,
+              shares,
+              comments,
+            },
+          };
+        }
+
+        const [notes, adminComments, likesCount] = await Promise.all([
+          prisma.adminNote.findMany({
+            where: { post: { authorId: user.id, status: { in: ["NEEDS_CHANGES", "REJECTED"] } } },
+            orderBy: { createdAt: "desc" },
+            take: 5,
+            include: { post: true },
+          }),
+          prisma.comment.findMany({
+            where: { post: { authorId: user.id }, author: { role: "ADMIN" } },
+            orderBy: { createdAt: "desc" },
+            take: 5,
+            include: { post: true },
+          }),
+          prisma.like.count({ where: { post: { authorId: user.id } } }),
+        ]);
+
+        const items = [
+          ...notes.map((note) => ({
+            id: `note-${note.id}`,
+            title: note.post.title,
+            message: note.text,
+            createdAt: note.createdAt,
+            href: `/editor/edit/${note.postId}`,
+          })),
+          ...adminComments.map((comment) => ({
+            id: `comment-${comment.id}`,
+            title: comment.post.title,
+            message: comment.text,
+            createdAt: comment.createdAt,
+            href: `/essay/${comment.post.slug}`,
+          })),
+        ];
+
+        return {
+          items: items
+            .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+            .slice(0, 5)
+            .map((item) => ({
+              ...item,
+              createdAt: item.createdAt.toLocaleDateString(),
+            })),
+          summary: {
+            likes: likesCount,
+          },
+        };
+      })()
+    : { items: [] };
+
+  const notificationItems = notificationData.items;
+  const notificationSummary = notificationData.summary;
 
   return (
     <html lang="en">
@@ -98,13 +176,8 @@ export default async function RootLayout({
                 {user ? (
                   <UserMenu
                     user={user}
-                    notifications={notifications.map((note) => ({
-                      id: note.id,
-                      postTitle: note.post.title,
-                      note: note.text,
-                      createdAt: note.createdAt.toLocaleDateString(),
-                      postId: note.postId,
-                    }))}
+                    notifications={notificationItems}
+                    notificationSummary={notificationSummary}
                   />
                 ) : (
                   <div className="flex items-center gap-3">
@@ -173,13 +246,8 @@ export default async function RootLayout({
                         </Link>
                         <LogoutButton className="text-left" style={{ color: 'var(--text-secondary)' }} />
                         <NotificationsBell
-                          items={notifications.map((note) => ({
-                            id: note.id,
-                            postTitle: note.post.title,
-                            note: note.text,
-                            createdAt: note.createdAt.toLocaleDateString(),
-                            postId: note.postId,
-                          }))}
+                          items={notificationItems}
+                          summary={notificationSummary}
                         />
                     </>
                   ) : (

@@ -9,6 +9,7 @@ type FeedbackNote = {
   postTitle: string;
   status: string;
   note: string;
+  revision: number;
   createdAt: string;
 };
 
@@ -81,7 +82,8 @@ export function FeedbackModal({
                     <div>
                       <p className="feedback-card-title">{note.postTitle}</p>
                       <p className="feedback-card-meta">
-                        {formatDate(note.createdAt)} · {note.status.replace("_", " ").toLowerCase()}
+                        {formatDate(note.createdAt)} · Version {note.revision} ·{" "}
+                        {note.status.replace("_", " ").toLowerCase()}
                       </p>
                     </div>
                   </div>

@@ -7,10 +7,17 @@ import { LogoutButton } from "@/components/LogoutButton";
 
 type NotificationItem = {
   id: string;
-  postTitle: string;
-  note: string;
+  title: string;
+  message: string;
   createdAt: string;
-  postId: string;
+  href: string;
+};
+
+type NotificationSummary = {
+  pendingReview?: number;
+  likes?: number;
+  shares?: number;
+  comments?: number;
 };
 
 type UserMenuProps = {
@@ -22,6 +29,8 @@ type UserMenuProps = {
     role: string;
   };
   notifications: NotificationItem[];
+  notificationSummary?: NotificationSummary;
+  notificationBadgeCount?: number;
 };
 
 function getInitials(name: string) {
@@ -33,7 +42,7 @@ function getInitials(name: string) {
     .toUpperCase();
 }
 
-export function UserMenu({ user, notifications }: UserMenuProps) {
+export function UserMenu({ user, notifications, notificationSummary, notificationBadgeCount }: UserMenuProps) {
   const [open, setOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -71,7 +80,11 @@ export function UserMenu({ user, notifications }: UserMenuProps) {
         </span>
         Write
       </Link>
-      <NotificationsBell items={notifications} />
+      <NotificationsBell
+        items={notifications}
+        summary={notificationSummary}
+        badgeCount={notificationBadgeCount}
+      />
       <div
         ref={menuRef}
         className={`relative user-menu ${open ? "is-open" : ""}`}

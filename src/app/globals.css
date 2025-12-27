@@ -772,7 +772,6 @@ body.advanced-editor-body {
   appearance: none;
   box-shadow: 0 6px 14px rgba(31, 29, 26, 0.06);
   overflow: hidden;
-  position: relative;
   cursor: pointer;
   text-align: left;
   break-inside: avoid;
@@ -793,6 +792,7 @@ body.advanced-editor-body {
 .editor-gallery-frame {
   width: 100%;
   background: #f5efe6;
+  position: relative;
 }
 
 .editor-gallery-media {
@@ -816,6 +816,17 @@ body.advanced-editor-body {
   opacity: 0;
   pointer-events: none;
   transition: opacity 160ms ease;
+}
+
+.editor-gallery-meta {
+  padding: 10px 12px 12px;
+  display: grid;
+  gap: 8px;
+  background: var(--surface);
+}
+
+.editor-gallery-remove {
+  width: fit-content;
 }
 
 .editor-gallery-card:hover .editor-gallery-overlay,
@@ -3364,6 +3375,12 @@ a {
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.2em;
+}
+
+.field-notes-cta-small {
+  padding: 6px 12px;
+  font-size: 10px;
+  letter-spacing: 0.18em;
 }
 
 .field-notes-results {

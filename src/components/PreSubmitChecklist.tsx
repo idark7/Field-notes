@@ -51,6 +51,7 @@ export function PreSubmitChecklist({ formId, buttonLabel = "Submit for Review" }
   const [open, setOpen] = useState(false);
   const [items, setItems] = useState<ChecklistItem[]>([]);
   const [submitting, setSubmitting] = useState(false);
+  const hasWarnings = items.some((item) => !item.ok);
 
   function handleSubmit(event: React.MouseEvent<HTMLButtonElement>) {
     if (submitting) return;
@@ -130,7 +131,7 @@ export function PreSubmitChecklist({ formId, buttonLabel = "Submit for Review" }
                     style={{ borderColor: "rgba(255,255,255,0.4)", borderTopColor: "#ffffff" }}
                   />
                 ) : null}
-                <span>{submitting ? "Submitting..." : "Submit anyway"}</span>
+                <span>{submitting ? "Submitting..." : hasWarnings ? "Submit anyway" : "Submit"}</span>
               </span>
             </button>
           </div>

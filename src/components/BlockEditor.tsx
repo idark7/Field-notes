@@ -159,6 +159,7 @@ const COMMAND_OPTIONS = [
 const DEFAULT_MEDIA_HEIGHT = 420;
 const MIN_MEDIA_HEIGHT = 220;
 const MAX_MEDIA_HEIGHT = 820;
+const MAX_MEDIA_FILES = 5;
 
 export function BlockEditor({
   name = "content",
@@ -179,10 +180,11 @@ export function BlockEditor({
   const [dropOverId, setDropOverId] = useState<string | null>(null);
   const [galleryModal, setGalleryModal] = useState<{ blockId: string; index: number } | null>(null);
   const [galleryDraft, setGalleryDraft] = useState({ altText: "", caption: "", keywords: "" });
-  const [previews, setPreviews] = useState<Record<string, { url: string; isVideo: boolean }>>({});
+  const [previews, setPreviews] = useState<Record<string, { url: string; isVideo: boolean; progress: number }>>({});
   const [galleryPreviews, setGalleryPreviews] = useState<
-    Record<string, { id: string; url: string; isVideo: boolean }[]>
+    Record<string, { id: string; url: string; isVideo: boolean; progress: number }[]>
   >({});
+  const [galleryFiles, setGalleryFiles] = useState<Record<string, File[]>>({});
   const [formatMenu, setFormatMenu] = useState<FormatMenuState | null>(null);
   const [pendingSelection, setPendingSelection] = useState<FormatSelection | null>(null);
   const resizeState = useRef<{
@@ -191,6 +193,9 @@ export function BlockEditor({
     startHeight: number;
   } | null>(null);
   const [resizingBlockId, setResizingBlockId] = useState<string | null>(null);
+  const [mediaLimitError, setMediaLimitError] = useState("");
+  const mediaInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
+  const galleryInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
 
   const serialized = useMemo(() => JSON.stringify(blocks), [blocks]);
   const commandMatches = useMemo(() => {
@@ -211,6 +216,18 @@ export function BlockEditor({
     });
     return entries.join("\n");
   }, [blocks]);
+  const selectedMediaCount = useMemo(() => {
+    const mediaCount = Object.values(previews).filter((preview) => preview?.url).length;
+    const galleryCount = Object.values(galleryPreviews).reduce((total, items) => total + items.length, 0);
+    return mediaCount + galleryCount;
+  }, [previews, galleryPreviews]);
+  const remainingMediaSlots = MAX_MEDIA_FILES - selectedMediaCount;
+
+  useEffect(() => {
+    if (mediaLimitError && selectedMediaCount < MAX_MEDIA_FILES) {
+      setMediaLimitError("");
+    }
+  }, [mediaLimitError, selectedMediaCount]);
 
   useEffect(() => {
     if (!galleryModal) return;
@@ -492,13 +509,48 @@ export function BlockEditor({
     setShowAdvancedMenu(false);
   }
 
+  function trackFileProgress(file: File, onProgress: (value: number) => void) {
+    const reader = new FileReader();
+    reader.onprogress = (event) => {
+      if (!event.lengthComputable) return;
+      const percent = Math.min(100, Math.round((event.loaded / event.total) * 100));
+      onProgress(percent);
+    };
+    reader.onload = () => onProgress(100);
+    reader.onerror = () => onProgress(100);
+    reader.readAsArrayBuffer(file);
+  }
+
+  function syncGalleryInput(blockId: string, files: File[]) {
+    const input = galleryInputRefs.current[blockId];
+    if (!input) return;
+    const data = new DataTransfer();
+    files.forEach((file) => data.items.add(file));
+    input.files = data.files;
+  }
+
+  function clearMediaInput(blockId: string) {
+    const input = mediaInputRefs.current[blockId];
+    if (input) {
+      input.value = "";
+    }
+  }
+
   function handleGalleryFiles(blockId: string, fileList: FileList | File[]) {
     const files = Array.from(fileList).filter(
       (file) => file.type.startsWith("image") || file.type.startsWith("video")
     );
     if (!files.length) return;
+    if (remainingMediaSlots <= 0) {
+      setMediaLimitError(`You can upload up to ${MAX_MEDIA_FILES} photos per story.`);
+      return;
+    }
+    const allowedFiles = files.slice(0, remainingMediaSlots);
+    if (allowedFiles.length < files.length) {
+      setMediaLimitError(`You can upload up to ${MAX_MEDIA_FILES} photos per story.`);
+    }
 
-    const nextItems = files.map((file) => ({
+    const nextItems = allowedFiles.map((file) => ({
       id: `${blockId}-${file.name}-${Math.random().toString(16).slice(2)}`,
       fileName: file.name,
       altText: "",
@@ -514,15 +566,81 @@ export function BlockEditor({
       })
     );
 
+    setGalleryFiles((current) => {
+      const existing = current[blockId] ?? [];
+      const nextFiles = [...existing, ...allowedFiles];
+      syncGalleryInput(blockId, nextFiles);
+      return { ...current, [blockId]: nextFiles };
+    });
+
     setGalleryPreviews((current) => {
       const existing = current[blockId] ?? [];
-      const nextPreviews = files.map((file, index) => ({
+      const nextPreviews = allowedFiles.map((file, index) => ({
         id: nextItems[index]?.id ?? `${blockId}-${index}`,
         url: URL.createObjectURL(file),
         isVideo: file.type.startsWith("video"),
+        progress: 0,
       }));
       return { ...current, [blockId]: [...existing, ...nextPreviews] };
     });
+
+    allowedFiles.forEach((file, index) => {
+      const previewId = nextItems[index]?.id;
+      if (!previewId) return;
+      trackFileProgress(file, (value) => {
+        setGalleryPreviews((current) => {
+          const items = current[blockId] ?? [];
+          return {
+            ...current,
+            [blockId]: items.map((item) =>
+              item.id === previewId ? { ...item, progress: value } : item
+            ),
+          };
+        });
+      });
+    });
+  }
+
+  function removeMediaSelection(blockId: string) {
+    setPreviews((current) => {
+      const next = { ...current };
+      const preview = next[blockId];
+      if (preview?.url) {
+        URL.revokeObjectURL(preview.url);
+      }
+      delete next[blockId];
+      return next;
+    });
+    updateBlock(blockId, { mediaFileName: "" });
+    clearMediaInput(blockId);
+  }
+
+  function removeGalleryItem(blockId: string, index: number) {
+    setGalleryPreviews((current) => {
+      const next = { ...current };
+      const items = next[blockId] ?? [];
+      const target = items[index];
+      if (target?.url) {
+        URL.revokeObjectURL(target.url);
+      }
+      next[blockId] = items.filter((_, itemIndex) => itemIndex !== index);
+      return next;
+    });
+
+    setGalleryFiles((current) => {
+      const existing = current[blockId] ?? [];
+      const nextFiles = existing.filter((_, fileIndex) => fileIndex !== index);
+      syncGalleryInput(blockId, nextFiles);
+      return { ...current, [blockId]: nextFiles };
+    });
+
+    setBlocks((current) =>
+      current.map((block) => {
+        if (block.id !== blockId) return block;
+        const items = block.galleryItems ?? [];
+        return { ...block, galleryItems: items.filter((_, itemIndex) => itemIndex !== index) };
+      })
+    );
   }
 
   function convertBlock(id: string, type: BlockType, level?: Block["level"]) {
@@ -594,6 +712,8 @@ export function BlockEditor({
     setBlocks(parseInitialBlocks(nextValue, "paragraph"));
     setPreviews({});
     setGalleryPreviews({});
+    setGalleryFiles({});
+    setMediaLimitError("");
     setActiveBlockId(null);
   }
 
@@ -1126,13 +1246,34 @@ export function BlockEditor({
                 accept="image/*,video/*"
                 onChange={(event) => {
                   const file = event.target.files?.[0];
+                  const availableSlots = remainingMediaSlots + (previews[block.id] ? 1 : 0);
+                  if (file && availableSlots <= 0) {
+                    setMediaLimitError(`You can upload up to ${MAX_MEDIA_FILES} photos per story.`);
+                    clearMediaInput(block.id);
+                    return;
+                  }
                   updateBlock(block.id, { mediaFileName: file ? file.name : "" });
                   if (file) {
                     const nextUrl = URL.createObjectURL(file);
-                    setPreviews((current) => ({
-                      ...current,
-                      [block.id]: { url: nextUrl, isVideo: file.type.startsWith("video") },
-                    }));
+                    setPreviews((current) => {
+                      const existing = current[block.id];
+                      if (existing?.url) {
+                        URL.revokeObjectURL(existing.url);
+                      }
+                      return {
+                        ...current,
+                        [block.id]: { url: nextUrl, isVideo: file.type.startsWith("video"), progress: 0 },
+                      };
+                    });
+                    trackFileProgress(file, (value) => {
+                      setPreviews((current) => ({
+                        ...current,
+                        [block.id]: {
+                          ...(current[block.id] ?? { url: nextUrl, isVideo: file.type.startsWith("video"), progress: value }),
+                          progress: value,
+                        },
+                      }));
+                    });
                   }
                 }}
                 className="border rounded-lg px-4 py-2"
@@ -1144,7 +1285,29 @@ export function BlockEditor({
                 onFocus={() => setActiveBlockId(block.id)}
                 data-block-id={block.id}
                 data-block-type="media"
+                ref={(node) => {
+                  mediaInputRefs.current[block.id] = node;
+                }}
               />
+              {mediaLimitError ? (
+                <p className="text-xs text-red-700">{mediaLimitError}</p>
+              ) : null}
+              {previews[block.id]?.progress !== undefined && previews[block.id]?.progress < 100 ? (
+                <div className="grid gap-1">
+                  <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+                    Uploading... {previews[block.id]?.progress}%
+                  </p>
+                  <div className="h-1 w-full rounded-full" style={{ background: "var(--bg-gray-200)" }}>
+                    <div
+                      className="h-full rounded-full"
+                      style={{
+                        width: `${previews[block.id]?.progress ?? 0}%`,
+                        background: "var(--accent)",
+                      }}
+                    />
+                  </div>
+                </div>
+              ) : null}
               {block.mediaFileName ? (
                 <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Selected: {block.mediaFileName}</p>
               ) : null}
@@ -1166,6 +1329,14 @@ export function BlockEditor({
                       />
                     )}
                   </div>
+                  <button
+                    type="button"
+                    className="text-xs uppercase tracking-[0.2em]"
+                    style={{ color: "var(--text-muted)" }}
+                    onClick={() => removeMediaSelection(block.id)}
+                  >
+                    Remove photo
+                  </button>
                   <button
                     type="button"
                     className="editor-media-resize-handle"
@@ -1243,27 +1414,39 @@ export function BlockEditor({
                   onFocus={() => setActiveBlockId(block.id)}
                   data-block-id={block.id}
                   data-block-type="gallery"
+                  ref={(node) => {
+                    galleryInputRefs.current[block.id] = node;
+                  }}
                 />
                 <div className="editor-dropzone-inner">
                   <span className="editor-dropzone-title">Drag and drop files</span>
                   <span className="editor-dropzone-subtitle">or click to upload multiple photos and videos</span>
                 </div>
               </label>
+              {mediaLimitError ? (
+                <p className="text-xs text-red-700">{mediaLimitError}</p>
+              ) : null}
               {galleryPreviews[block.id]?.length ? (
                 <div className="editor-gallery-grid">
                   {galleryPreviews[block.id].map((preview, previewIndex) => {
                     const details = block.galleryItems?.[previewIndex];
                     const hasDetails = Boolean(details?.altText || details?.caption || details?.keywords);
                     return (
-                      <button
+                      <div
                         key={preview.id}
-                        type="button"
                         className="editor-gallery-card"
+                        role="button"
+                        tabIndex={0}
                         onClick={() => setGalleryModal({ blockId: block.id, index: previewIndex })}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter" || event.key === " ") {
+                            event.preventDefault();
+                            setGalleryModal({ blockId: block.id, index: previewIndex });
+                          }
+                        }}
                         aria-label={`Edit gallery item ${previewIndex + 1}`}
                         aria-haspopup="dialog"
                       >
-                        {preview.isVideo ? <span className="editor-gallery-tag">Video</span> : null}
                         <div className="editor-gallery-frame">
                           {preview.isVideo ? (
                             <video controls className="editor-gallery-media">
@@ -1272,11 +1455,41 @@ export function BlockEditor({
                           ) : (
                             <img src={preview.url} alt="" className="editor-gallery-media" />
                           )}
+                          {preview.isVideo ? <span className="editor-gallery-tag">Video</span> : null}
+                          <div className="editor-gallery-overlay">
+                            <span>{hasDetails ? "Edit details" : "Add details"}</span>
+                          </div>
                         </div>
-                        <div className="editor-gallery-overlay">
-                          <span>{hasDetails ? "Edit details" : "Add details"}</span>
+                        <div className="editor-gallery-meta">
+                          {preview.progress < 100 ? (
+                            <div className="grid gap-1">
+                              <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+                                Uploading... {preview.progress}%
+                              </p>
+                              <div className="h-1 w-full rounded-full" style={{ background: "var(--bg-gray-200)" }}>
+                                <div
+                                  className="h-full rounded-full"
+                                  style={{
+                                    width: `${preview.progress}%`,
+                                    background: "var(--accent)",
+                                  }}
+                                />
+                              </div>
+                            </div>
+                          ) : null}
+                          <button
+                            type="button"
+                            className="editor-gallery-remove text-xs uppercase tracking-[0.2em]"
+                            style={{ color: "var(--text-muted)" }}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              removeGalleryItem(block.id, previewIndex);
+                            }}
+                          >
+                            Remove
+                          </button>
                         </div>
-                      </button>
+                      </div>
                     );
                   })}
                 </div>
@@ -1298,13 +1511,34 @@ export function BlockEditor({
                 accept="image/*,video/*"
                 onChange={(event) => {
                   const file = event.target.files?.[0];
+                  const availableSlots = remainingMediaSlots + (previews[block.id] ? 1 : 0);
+                  if (file && availableSlots <= 0) {
+                    setMediaLimitError(`You can upload up to ${MAX_MEDIA_FILES} photos per story.`);
+                    clearMediaInput(block.id);
+                    return;
+                  }
                   updateBlock(block.id, { mediaFileName: file ? file.name : "" });
                   if (file) {
                     const nextUrl = URL.createObjectURL(file);
-                    setPreviews((current) => ({
-                      ...current,
-                      [block.id]: { url: nextUrl, isVideo: file.type.startsWith("video") },
-                    }));
+                    setPreviews((current) => {
+                      const existing = current[block.id];
+                      if (existing?.url) {
+                        URL.revokeObjectURL(existing.url);
+                      }
+                      return {
+                        ...current,
+                        [block.id]: { url: nextUrl, isVideo: file.type.startsWith("video"), progress: 0 },
+                      };
+                    });
+                    trackFileProgress(file, (value) => {
+                      setPreviews((current) => ({
+                        ...current,
+                        [block.id]: {
+                          ...(current[block.id] ?? { url: nextUrl, isVideo: file.type.startsWith("video"), progress: value }),
+                          progress: value,
+                        },
+                      }));
+                    });
                   }
                 }}
                 className="border rounded-lg px-4 py-2"
@@ -1316,7 +1550,29 @@ export function BlockEditor({
                 onFocus={() => setActiveBlockId(block.id)}
                 data-block-id={block.id}
                 data-block-type="background"
+                ref={(node) => {
+                  mediaInputRefs.current[block.id] = node;
+                }}
               />
+              {mediaLimitError ? (
+                <p className="text-xs text-red-700">{mediaLimitError}</p>
+              ) : null}
+              {previews[block.id]?.progress !== undefined && previews[block.id]?.progress < 100 ? (
+                <div className="grid gap-1">
+                  <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+                    Uploading... {previews[block.id]?.progress}%
+                  </p>
+                  <div className="h-1 w-full rounded-full" style={{ background: "var(--bg-gray-200)" }}>
+                    <div
+                      className="h-full rounded-full"
+                      style={{
+                        width: `${previews[block.id]?.progress ?? 0}%`,
+                        background: "var(--accent)",
+                      }}
+                    />
+                  </div>
+                </div>
+              ) : null}
               {previews[block.id]?.url ? (
                 <div className={`editor-media-resize-wrapper ${resizingBlockId === block.id ? "is-resizing" : ""}`}>
                   <div
@@ -1335,6 +1591,14 @@ export function BlockEditor({
                       />
                     )}
                   </div>
+                  <button
+                    type="button"
+                    className="text-xs uppercase tracking-[0.2em]"
+                    style={{ color: "var(--text-muted)" }}
+                    onClick={() => removeMediaSelection(block.id)}
+                  >
+                    Remove photo
+                  </button>
                   <button
                     type="button"
                     className="editor-media-resize-handle"

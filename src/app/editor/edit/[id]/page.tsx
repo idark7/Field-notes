@@ -9,6 +9,7 @@ import { PreSubmitChecklist } from "@/components/PreSubmitChecklist";
 import { EditorPreview } from "@/components/EditorPreview";
 import { FeedbackModal } from "@/components/FeedbackModal";
 import { VersionHistoryModal } from "@/components/VersionHistoryModal";
+import { SiteFooter } from "@/components/SiteFooter";
 
 async function updatePost(formData: FormData) {
   "use server";
@@ -234,6 +235,7 @@ export default async function EditPostPage({ params }: { params: Promise<{ id: s
     postTitle: post.title,
     status: post.status,
     note: note.text,
+    revision: note.revision ?? post.revision,
     createdAt: note.createdAt.toISOString(),
   }));
   const revisionEntries = post.revisions.map((revision) => ({
@@ -244,98 +246,101 @@ export default async function EditPostPage({ params }: { params: Promise<{ id: s
   const versionLabel = `Version ${post.revision}`;
 
   return (
-    <main className="page-shell pb-16">
-      <section className="section-card p-10 editor-surface">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <p className="text-xs uppercase tracking-[0.3em] text-[color:var(--muted)]">Edit Essay</p>
-            <h2 className="text-3xl font-semibold mt-4" style={{ fontFamily: "var(--font-display)" }}>
-              Update your field note
-            </h2>
-            <p className="mt-2 text-xs uppercase tracking-[0.3em] text-[color:var(--muted)]">
-              {versionLabel}
-            </p>
-          </div>
-          <div className="flex items-center gap-3">
-            {feedbackEntries.length > 0 ? (
-              <FeedbackModal
-                notes={feedbackEntries}
-                label="View feedback"
-                title={`Feedback for ${post.title}`}
-                className="feedback-button-outline"
-              />
-            ) : null}
-            <VersionHistoryModal
-              revisions={revisionEntries}
-              currentRevision={post.revision}
-              restoreAction={restoreRevision}
-            />
-            <EditorPreview formId="editor-form" />
-          </div>
-        </div>
-        <form id="editor-form" action={updatePost} className="mt-8 grid gap-6">
-          <EditorAutosave draftKey={`edit-${post.id}`} />
-          <input type="hidden" name="postId" value={post.id} />
-          <div className="editor-layout">
-            <div className="editor-main">
-              <input
-                type="text"
-                name="title"
-                defaultValue={post.title}
-                required
-                className="editor-title"
-                id="editor-title"
-                data-autosave="title"
-              />
-              <BlockEditor initialContent={post.content} />
-              <div className="text-sm text-[color:var(--muted)]">
-                Add a media, gallery, or cover photo block for each file and include SEO-ready alt text.
-              </div>
+    <>
+      <main className="page-shell pb-16">
+        <section className="section-card p-10 editor-surface">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <p className="text-xs uppercase tracking-[0.3em] text-[color:var(--muted)]">Edit Essay</p>
+              <h2 className="text-3xl font-semibold mt-4" style={{ fontFamily: "var(--font-display)" }}>
+                Update your field note
+              </h2>
+              <p className="mt-2 text-xs uppercase tracking-[0.3em] text-[color:var(--muted)]">
+                {versionLabel}
+              </p>
             </div>
-            <aside className="editor-panel">
-              <div className="editor-panel-card">
-                <p className="editor-panel-title">Details</p>
-                <div className="grid gap-4">
-                  <div className="grid gap-2">
-                    <label className="text-xs uppercase tracking-[0.2em] text-[color:var(--muted)]">
-                      Tags
-                    </label>
-                    <input
-                      type="text"
-                      name="tags"
-                      defaultValue={tags}
-                      className="editor-input"
-                      id="editor-tags"
-                      data-autosave="tags"
-                    />
-                  </div>
-                  <div className="grid gap-2">
-                    <label className="text-xs uppercase tracking-[0.2em] text-[color:var(--muted)]">
-                      Categories
-                    </label>
-                    <input
-                      type="text"
-                      name="categories"
-                      defaultValue={categories}
-                      className="editor-input"
-                      id="editor-categories"
-                      data-autosave="categories"
-                    />
-                  </div>
+            <div className="flex items-center gap-3">
+              {feedbackEntries.length > 0 ? (
+                <FeedbackModal
+                  notes={feedbackEntries}
+                  label="View feedback"
+                  title={`Feedback for ${post.title}`}
+                  className="feedback-button-outline"
+                />
+              ) : null}
+              <VersionHistoryModal
+                revisions={revisionEntries}
+                currentRevision={post.revision}
+                restoreAction={restoreRevision}
+              />
+              <EditorPreview formId="editor-form" />
+            </div>
+          </div>
+          <form id="editor-form" action={updatePost} className="mt-8 grid gap-6">
+            <EditorAutosave draftKey={`edit-${post.id}`} />
+            <input type="hidden" name="postId" value={post.id} />
+            <div className="editor-layout">
+              <div className="editor-main">
+                <input
+                  type="text"
+                  name="title"
+                  defaultValue={post.title}
+                  required
+                  className="editor-title"
+                  id="editor-title"
+                  data-autosave="title"
+                />
+                <BlockEditor initialContent={post.content} />
+                <div className="text-sm text-[color:var(--muted)]">
+                  Add a media, gallery, or cover photo block for each file and include SEO-ready alt text.
                 </div>
               </div>
-              <div className="editor-panel-card">
-                <p className="editor-panel-title">SEO</p>
-                <SeoFields excerpt={post.excerpt ?? ""} metaTitle={post.metaTitle ?? ""} metaDesc={post.metaDesc ?? ""} />
-              </div>
-              <PreSubmitChecklist
-                formId="editor-form"
-                buttonLabel={user.role === "ADMIN" && post.authorId === user.id ? "Publish changes" : "Resubmit for Review"}
-              />
-            </aside>
-          </div>
-        </form>
-      </section>
-    </main>
+              <aside className="editor-panel">
+                <div className="editor-panel-card">
+                  <p className="editor-panel-title">Details</p>
+                  <div className="grid gap-4">
+                    <div className="grid gap-2">
+                      <label className="text-xs uppercase tracking-[0.2em] text-[color:var(--muted)]">
+                        Tags
+                      </label>
+                      <input
+                        type="text"
+                        name="tags"
+                        defaultValue={tags}
+                        className="editor-input"
+                        id="editor-tags"
+                        data-autosave="tags"
+                      />
+                    </div>
+                    <div className="grid gap-2">
+                      <label className="text-xs uppercase tracking-[0.2em] text-[color:var(--muted)]">
+                        Categories
+                      </label>
+                      <input
+                        type="text"
+                        name="categories"
+                        defaultValue={categories}
+                        className="editor-input"
+                        id="editor-categories"
+                        data-autosave="categories"
+                      />
+                    </div>
+                  </div>
+                </div>
+                <div className="editor-panel-card">
+                  <p className="editor-panel-title">SEO</p>
+                  <SeoFields excerpt={post.excerpt ?? ""} metaTitle={post.metaTitle ?? ""} metaDesc={post.metaDesc ?? ""} />
+                </div>
+                <PreSubmitChecklist
+                  formId="editor-form"
+                  buttonLabel={user.role === "ADMIN" && post.authorId === user.id ? "Publish changes" : "Resubmit for Review"}
+                />
+              </aside>
+            </div>
+          </form>
+        </section>
+      </main>
+      <SiteFooter />
+    </>
   );
 }

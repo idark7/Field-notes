@@ -164,9 +164,8 @@ export function FieldNotesGrid({
   }, [query, activeCategory, activeTag, activeAuthor, activeCollection, perPage]);
 
   const filtered = displayPosts;
-
-  const topGridResults = viewMode === "grid" ? filtered.slice(0, 2) : [];
-  const remainingResults = viewMode === "grid" ? filtered.slice(2) : filtered;
+  const gridResults = viewMode === "grid" ? filtered : [];
+  const listResults = viewMode === "list" ? filtered : [];
   const totalPages = displayTotal ? Math.max(1, Math.ceil(displayTotal / perPage)) : 1;
   const showPagination = Boolean(displayTotal && totalPages > 1);
 
@@ -293,15 +292,23 @@ export function FieldNotesGrid({
               <p className="mt-4 max-w-2xl text-[18px] leading-[29px] text-[var(--text-tertiary)] md:text-[20px] md:leading-[32px]">
                 {headingCopy.description}
               </p>
-              {topGridResults.length ? (
-                <div className="field-notes-results">
-                  <div className="grid md:grid-cols-2 gap-8">
-                    {topGridResults.map(renderGridCard)}
+              {gridResults.length ? (
+                <div className="field-notes-results relative">
+                  <div
+                    key={`page-${animationKey}`}
+                    className={`grid gap-8 md:grid-cols-3 field-notes-page field-notes-page-${slideDirection}`}
+                  >
+                    {gridResults.map(renderGridCard)}
                   </div>
+                  {isFetching ? (
+                    <div className="field-notes-loading" aria-hidden>
+                      <span className="page-loading-spinner" />
+                    </div>
+                  ) : null}
                 </div>
               ) : null}
             </div>
-            <div className="field-notes-panel">
+            <div className="field-notes-panel md:sticky md:top-24">
               <div className="field-notes-panel-section">
                 <p className="field-notes-panel-title">Search</p>
                 <input
@@ -426,78 +433,71 @@ export function FieldNotesGrid({
                 </select>
               </div>
               <div className="field-notes-panel-section">
-                <Link href="/editor?view=stories" className="field-notes-cta">
+                <div className="flex justify-end">
+                  <Link href="/editor?view=stories" className="field-notes-cta field-notes-cta-small">
                   View My Stories
-                </Link>
+                  </Link>
+                </div>
               </div>
             </div>
           </div>
         </div>
       </section>
 
-      {remainingResults.length ? (
+      {listResults.length ? (
         <section className="mx-auto max-w-[1232px] px-6 pb-20 pt-10 relative">
-          {viewMode === "grid" ? (
-            <div
-              key={`page-${animationKey}`}
-              className={`grid gap-8 md:grid-cols-3 field-notes-page field-notes-page-${slideDirection}`}
-            >
-              {remainingResults.map(renderGridCard)}
-            </div>
-          ) : (
-            <div
-              key={`page-${animationKey}`}
-              className={`field-notes-list field-notes-page field-notes-page-${slideDirection}`}
-            >
-              {remainingResults.map((post) => {
-                const categoriesLabel = post.categories.map((item) => item.category.name).join(" / ") || "Field Notes";
-                const tagNames = post.tags.map((item) => item.tag.name);
-                const excerpt = post.excerpt || extractPreviewText(post.content, 140);
-                return (
-                  <article key={post.id} className="field-notes-list-item">
-                    <div className="field-notes-list-header">
-                      <p className="field-notes-list-category">{categoriesLabel}</p>
-                      <Link href={`/essay/${post.slug}`} className="field-notes-list-title">
-                        {post.title}
-                      </Link>
-                      <p className="field-notes-list-excerpt">{excerpt}</p>
-                    </div>
-                    <div className="field-notes-list-meta">
-                      <div className="field-notes-profile">
-                        {post.author.image ? (
-                          <img
-                            src={post.author.image}
-                            alt={post.author.name}
-                            className="h-7 w-7 rounded-full object-cover"
-                          />
-                        ) : (
-                          <span className="field-notes-avatar">{getInitials(post.author.name)}</span>
-                        )}
-                        <div>
-                          <p className="field-notes-author">{post.author.name}</p>
-                          <p className="field-notes-time">{formatRelative(post.createdAt)}</p>
-                        </div>
-                      </div>
-                      <div className="field-notes-stats">
-                        <span>{post._count.likes} likes</span>
-                        <span>{post._count.comments} comments</span>
-                        <span>{post.readTimeMin} min read</span>
+          <div
+            key={`page-${animationKey}`}
+            className={`field-notes-list field-notes-page field-notes-page-${slideDirection}`}
+          >
+            {listResults.map((post) => {
+              const categoriesLabel = post.categories.map((item) => item.category.name).join(" / ") || "Field Notes";
+              const tagNames = post.tags.map((item) => item.tag.name);
+              const excerpt = post.excerpt || extractPreviewText(post.content, 140);
+              return (
+                <article key={post.id} className="field-notes-list-item">
+                  <div className="field-notes-list-header">
+                    <p className="field-notes-list-category">{categoriesLabel}</p>
+                    <Link href={`/essay/${post.slug}`} className="field-notes-list-title">
+                      {post.title}
+                    </Link>
+                    <p className="field-notes-list-excerpt">{excerpt}</p>
+                  </div>
+                  <div className="field-notes-list-meta">
+                    <div className="field-notes-profile">
+                      {post.author.image ? (
+                        <img
+                          src={post.author.image}
+                          alt={post.author.name}
+                          className="h-7 w-7 rounded-full object-cover"
+                        />
+                      ) : (
+                        <span className="field-notes-avatar">{getInitials(post.author.name)}</span>
+                      )}
+                      <div>
+                        <p className="field-notes-author">{post.author.name}</p>
+                        <p className="field-notes-time">{formatRelative(post.createdAt)}</p>
                       </div>
                     </div>
-                    {tagNames.length ? (
-                      <div className="field-notes-tags">
-                        {tagNames.map((tag) => (
-                          <span key={`${post.id}-${tag}`} className="field-notes-tag">
-                            {tag}
-                          </span>
-                        ))}
-                      </div>
-                    ) : null}
-                  </article>
-                );
-              })}
-            </div>
-          )}
+                    <div className="field-notes-stats">
+                      <span>{post._count.likes} likes</span>
+                      <span>{post._count.comments} comments</span>
+                      <span>{post.readTimeMin} min read</span>
+                    </div>
+                  </div>
+                  {tagNames.length ? (
+                    <div className="field-notes-tags">
+                      {tagNames.map((tag) => (
+                        <span key={`${post.id}-${tag}`} className="field-notes-tag">
+                          {tag}
+                        </span>
+                      ))}
+                    </div>
+                  ) : null}
+                </article>
+              );
+            })}
+          </div>
           {isFetching ? (
             <div className="field-notes-loading" aria-hidden>
               <span className="page-loading-spinner" />

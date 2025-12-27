@@ -291,17 +291,6 @@ export default async function EditorPage({
           </form>
         </section>
       ) : null}
-      {!showStoriesOnly && needsChangesCount > 0 ? (
-        <section className="section-card p-6 mt-8 border border-[color:var(--accent)]">
-          <p className="text-xs uppercase tracking-[0.3em] text-[color:var(--accent)]">
-            Action required
-          </p>
-          <p className="text-sm text-[color:var(--muted)] mt-2">
-            You have {needsChangesCount} essay(s) that need revisions. Open the submission below
-            to review admin feedback.
-          </p>
-        </section>
-      ) : null}
       {showStoriesOnly ? (
         <section
           id="my-stories"
@@ -354,14 +343,15 @@ export default async function EditorPage({
                   <div className="mt-4 flex flex-wrap items-center gap-3">
                     {post.adminNotes.length > 0 ? (
                       <FeedbackModal
-                        notes={post.adminNotes.map((note) => ({
-                          id: note.id,
-                          postId: post.id,
-                          postTitle: post.title,
-                          status: post.status,
-                          note: note.text,
-                          createdAt: note.createdAt.toISOString(),
-                        }))}
+                      notes={post.adminNotes.map((note) => ({
+                        id: note.id,
+                        postId: post.id,
+                        postTitle: post.title,
+                        status: post.status,
+                        note: note.text,
+                        revision: note.revision ?? post.revision,
+                        createdAt: note.createdAt.toISOString(),
+                      }))}
                         label="View feedback"
                         title={`Feedback for ${post.title}`}
                         className="feedback-button-outline"

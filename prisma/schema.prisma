@@ -160,6 +160,7 @@ model AdminNote {
   postId    String
   adminId   String
   text      String
+  revision  Int      @default(1)
   createdAt DateTime @default(now())
 
   post      Post     @relation(fields: [postId], references: [id])

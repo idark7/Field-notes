@@ -91,7 +91,7 @@ async function reviewPost(formData: FormData) {
 
   const post = await prisma.post.findUnique({
     where: { id: postId },
-    select: { slug: true },
+    select: { slug: true, revision: true },
   });
 
   if (!post) {
@@ -105,7 +105,7 @@ async function reviewPost(formData: FormData) {
 
   if (note) {
     await prisma.adminNote.create({
-      data: { postId, adminId: user.id, text: note },
+      data: { postId, adminId: user.id, text: note, revision: post.revision },
     });
   }
 
