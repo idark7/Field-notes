@@ -1,5 +1,4 @@
 import Link from "next/link";
-import starIcon from "@/app/assets/star.svg";
 import { notFound, redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { getSessionUser } from "@/lib/auth";
@@ -8,6 +7,7 @@ import { CommentsSection } from "@/components/CommentsSection";
 import { LightboxImage } from "@/components/LightboxImage";
 import { AdminReviewModal } from "@/components/AdminReviewModal";
 import { renderInlineText } from "@/lib/inlineFormat";
+import { SiteFooter } from "@/components/SiteFooter";
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }) {
   const resolvedParams = await params;
@@ -555,40 +555,7 @@ export default async function EssayPage({ params }: { params: Promise<{ slug: st
         </article>
       </div>
 
-      <section className="px-6 py-16">
-        <div className="mx-auto max-w-[1232px]">
-          <div
-            className="w-full rounded-2xl px-6 py-16 text-center md:px-20 md:py-20"
-            style={{
-              background:
-                "radial-gradient(ellipse 50% 126.87% at 50% 50%, #D0110C 0%, #F47300 40%, #E84300 67%, #290B61 100%)",
-              backdropFilter: "blur(71px)",
-            }}
-          >
-            <div className="mx-auto inline-flex items-center gap-2 rounded-full bg-[#101828] px-5 py-2 text-sm text-white">
-              <img src={starIcon.src} alt="" className="h-4 w-4" />
-              <span>Coming Soon</span>
-            </div>
-            <h2 className="mt-8 text-[32px] font-semibold leading-tight text-white md:text-[48px]">
-              Introducing Great D&apos;Tour
-            </h2>
-            <p className="mx-auto mt-4 max-w-3xl text-[18px] leading-8 text-white/90 md:text-[24px]">
-              A new platform for discovering and booking niche travel experiences. From hidden
-              cultural gems to off-the-beaten-path adventures, Great D&apos;Tour connects you with
-              extraordinary journeys curated by local experts.
-            </p>
-            <div className="mt-10 flex justify-center">
-              <Link
-                href="/register"
-                className="inline-flex h-12 items-center justify-center rounded-full bg-white px-10 text-[16px] font-semibold text-[#D0110C]"
-                style={{ color: "#D0110C" }}
-              >
-                Sign Up
-              </Link>
-            </div>
-          </div>
-        </div>
-      </section>
+      <SiteFooter />
     </main>
   );
 }

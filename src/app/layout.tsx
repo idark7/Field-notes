@@ -70,11 +70,11 @@ export default async function RootLayout({
             </Link>
             <SiteNav className="hidden items-center gap-8 text-[16px] md:flex" />
             <div className="flex items-center gap-3">
-              <button
-                type="button"
+              <Link
+                href="/field-notes?focus=1"
                 className="hidden h-10 w-10 items-center justify-center transition md:inline-flex"
                 style={{ color: 'var(--text-primary)' }}
-                aria-label="Search"
+                aria-label="Search stories"
               >
                 <span className="relative h-5 w-5">
                   <span className="absolute" style={{ inset: "12.5% 20.83% 20.83% 12.5%" }}>
@@ -92,7 +92,7 @@ export default async function RootLayout({
                     />
                   </span>
                 </span>
-              </button>
+              </Link>
               <ThemeToggle />
               <div className="hidden items-center gap-4 md:flex">
                 {user ? (
@@ -188,16 +188,16 @@ export default async function RootLayout({
                       <Link href="/register">Register</Link>
                     </>
                   )}
-                  <button
-                      type="button"
-                      className="h-10 w-full rounded-full text-[14px] font-medium"
-                      style={{
-                        border: '1px solid var(--border-gray)',
-                        color: 'var(--text-primary)'
-                      }}
-                    >
-                      Search
-                  </button>
+                  <Link
+                    href="/field-notes?focus=1"
+                    className="flex h-10 w-full items-center justify-center rounded-full text-[14px] font-medium"
+                    style={{
+                      border: '1px solid var(--border-gray)',
+                      color: 'var(--text-primary)'
+                    }}
+                  >
+                    Search
+                  </Link>
                   <ThemeToggle />
                   <Link
                       href="/editor"

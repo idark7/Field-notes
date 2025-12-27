@@ -2480,7 +2480,7 @@ a {
   display: flex;
   flex-wrap: wrap;
   gap: 28px;
-  border-bottom: 1px solid rgba(229, 231, 235, 0.9);
+  border-bottom: 1px solid var(--border-gray);
   padding-bottom: 10px;
 }
 
@@ -2488,19 +2488,19 @@ a {
   position: relative;
   font-size: 16px;
   font-weight: 500;
-  color: #667085;
+  color: var(--text-muted);
   padding-bottom: 12px;
   transition: color 160ms ease;
 }
 
 .admin-tab-count {
   margin-left: 6px;
-  color: #98a2b3;
+  color: var(--text-muted);
   font-weight: 500;
 }
 
 .admin-tab-active {
-  color: #101828;
+  color: var(--text-primary);
 }
 
 .admin-tab-active::after {
@@ -2510,7 +2510,7 @@ a {
   right: 0;
   bottom: -11px;
   height: 2px;
-  background: #101828;
+  background: var(--text-primary);
   border-radius: 999px;
 }
 
@@ -3373,6 +3373,41 @@ a {
 .field-notes-list {
   display: grid;
   gap: 16px;
+}
+
+.field-notes-page {
+  animation: field-notes-slide-in 260ms ease;
+  will-change: transform, opacity;
+}
+
+.field-notes-page-next {
+  animation-name: field-notes-slide-in-next;
+}
+
+.field-notes-page-prev {
+  animation-name: field-notes-slide-in-prev;
+}
+
+@keyframes field-notes-slide-in-next {
+  from {
+    opacity: 0;
+    transform: translateX(24px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes field-notes-slide-in-prev {
+  from {
+    opacity: 0;
+    transform: translateX(-24px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
 }
 
 .field-notes-list-item {

@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { extractPreviewText } from "@/lib/utils";
 
 type Category = {
@@ -52,6 +53,12 @@ type FieldNotesGridProps = {
   categories: Category[];
   tags: { id: string; name: string }[];
   variant?: "full" | "compact";
+  initialQuery?: string;
+  autoFocus?: boolean;
+  currentPage?: number;
+  pageSize?: number;
+  totalCount?: number;
+  basePath?: string;
 };
 
 function formatRelative(value: string | Date) {
@@ -68,13 +75,34 @@ function formatRelative(value: string | Date) {
   return date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 }
 
-export function FieldNotesGrid({ posts, categories, tags, variant = "full" }: FieldNotesGridProps) {
+export function FieldNotesGrid({
+  posts,
+  categories,
+  tags,
+  variant = "full",
+  initialQuery = "",
+  autoFocus = false,
+  currentPage = 1,
+  pageSize = 6,
+  totalCount,
+  basePath = "/field-notes",
+}: FieldNotesGridProps) {
+  const router = useRouter();
   const [activeCategory, setActiveCategory] = useState<string>("All");
   const [activeTag, setActiveTag] = useState<string>("All");
   const [activeAuthor, setActiveAuthor] = useState<string>("All");
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [selected, setSelected] = useState<Post | null>(null);
   const [expanded, setExpanded] = useState(false);
+  const [query, setQuery] = useState(initialQuery);
+  const searchRef = useRef<HTMLInputElement>(null);
+  const [displayPosts, setDisplayPosts] = useState<Post[]>(posts);
+  const [displayTotal, setDisplayTotal] = useState<number>(totalCount ?? posts.length);
+  const [page, setPage] = useState(currentPage);
+  const [isFetching, setIsFetching] = useState(false);
+  const [slideDirection, setSlideDirection] = useState<"next" | "prev">("next");
+  const [animationKey, setAnimationKey] = useState(0);
+  const initialLoad = useRef(true);
 
   const authorOptions = useMemo(() => {
     const names = posts.map((post) => post.author.name).filter(Boolean);
@@ -88,21 +116,104 @@ export function FieldNotesGrid({ posts, categories, tags, variant = "full" }: Fi
     }
   }, [viewMode, selected]);
 
-  const filtered = useMemo(() => {
-    return posts.filter((post) => {
-      const matchesCategory =
-        activeCategory === "All" ||
-        post.categories.some((item) => item.category.name === activeCategory);
-      const matchesTag =
-        activeTag === "All" || post.tags.some((item) => item.tag.name === activeTag);
-      const matchesAuthor =
-        activeAuthor === "All" || post.author.name === activeAuthor;
-      return matchesCategory && matchesTag && matchesAuthor;
-    });
-  }, [activeCategory, activeTag, activeAuthor, posts]);
+  useEffect(() => {
+    if (autoFocus) {
+      searchRef.current?.focus();
+    }
+  }, [autoFocus]);
+
+  useEffect(() => {
+    setDisplayPosts(posts);
+  }, [posts]);
+
+  useEffect(() => {
+    if (typeof totalCount === "number") {
+      setDisplayTotal(totalCount);
+    }
+  }, [totalCount]);
+
+  useEffect(() => {
+    setPage(currentPage);
+  }, [currentPage]);
+
+  useEffect(() => {
+    if (initialLoad.current) {
+      initialLoad.current = false;
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      void fetchPage(1, "next");
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [query, activeCategory, activeTag, activeAuthor]);
+
+  const filtered = displayPosts;
 
   const topGridResults = viewMode === "grid" ? filtered.slice(0, 2) : [];
   const remainingResults = viewMode === "grid" ? filtered.slice(2) : filtered;
+  const totalPages = displayTotal ? Math.max(1, Math.ceil(displayTotal / pageSize)) : 1;
+  const showPagination = Boolean(displayTotal && totalPages > 1);
+
+  const buildPageHref = (page: number) => {
+    const params = new URLSearchParams();
+    if (query.trim()) {
+      params.set("q", query.trim());
+    }
+    if (activeCategory !== "All") {
+      params.set("category", activeCategory);
+    }
+    if (activeTag !== "All") {
+      params.set("tag", activeTag);
+    }
+    if (activeAuthor !== "All") {
+      params.set("author", activeAuthor);
+    }
+    if (page > 1) {
+      params.set("page", String(page));
+    }
+    const queryString = params.toString();
+    return queryString ? `${basePath}?${queryString}` : basePath;
+  };
+
+  const fetchPage = async (nextPage: number, direction: "next" | "prev") => {
+    if (isFetching) return;
+    setIsFetching(true);
+    setSlideDirection(direction);
+    try {
+      const params = new URLSearchParams();
+      params.set("page", String(nextPage));
+      params.set("pageSize", String(pageSize));
+      if (query.trim()) {
+        params.set("q", query.trim());
+      }
+      if (activeCategory !== "All") {
+        params.set("category", activeCategory);
+      }
+      if (activeTag !== "All") {
+        params.set("tag", activeTag);
+      }
+      if (activeAuthor !== "All") {
+        params.set("author", activeAuthor);
+      }
+
+      const response = await fetch(`/api/field-notes?${params.toString()}`, {
+        cache: "no-store",
+      });
+      if (!response.ok) {
+        return;
+      }
+      const data = await response.json();
+      setDisplayPosts(data.posts ?? []);
+      setDisplayTotal(data.totalCount ?? 0);
+      setPage(nextPage);
+      setAnimationKey((prev) => prev + 1);
+      router.replace(buildPageHref(nextPage), { scroll: false });
+    } finally {
+      setIsFetching(false);
+    }
+  };
 
   const renderGridCard = (post: Post) => {
     const mediaId = post.media.find((item) => item.type === "PHOTO")?.id;
@@ -172,6 +283,21 @@ export function FieldNotesGrid({ posts, categories, tags, variant = "full" }: Fi
               ) : null}
             </div>
             <div className="field-notes-panel">
+              <div className="field-notes-panel-section">
+                <p className="field-notes-panel-title">Search</p>
+                <input
+                  ref={searchRef}
+                  type="search"
+                  value={query}
+                  onChange={(event) => setQuery(event.target.value)}
+                  placeholder="Search stories"
+                  className="field-notes-select"
+                  style={{ backgroundImage: "none" }}
+                  aria-label="Search stories"
+                  name="q"
+                  id="field-notes-search"
+                />
+              </div>
               <div className="field-notes-panel-section">
                 <p className="field-notes-panel-title">View mode</p>
                 <div className="field-notes-view">
@@ -263,11 +389,17 @@ export function FieldNotesGrid({ posts, categories, tags, variant = "full" }: Fi
       {remainingResults.length ? (
         <section className="mx-auto max-w-[1232px] px-6 pb-20 pt-10">
           {viewMode === "grid" ? (
-            <div className="grid gap-8 md:grid-cols-3">
+            <div
+              key={`page-${animationKey}`}
+              className={`grid gap-8 md:grid-cols-3 field-notes-page field-notes-page-${slideDirection}`}
+            >
               {remainingResults.map(renderGridCard)}
             </div>
           ) : (
-            <div className="field-notes-list">
+            <div
+              key={`page-${animationKey}`}
+              className={`field-notes-list field-notes-page field-notes-page-${slideDirection}`}
+            >
               {remainingResults.map((post) => {
                 const categoriesLabel = post.categories.map((item) => item.category.name).join(" / ") || "Field Notes";
                 const tagNames = post.tags.map((item) => item.tag.name);
@@ -318,6 +450,39 @@ export function FieldNotesGrid({ posts, categories, tags, variant = "full" }: Fi
             </div>
           )}
         </section>
+      ) : null}
+      {showPagination ? (
+        <div className="mx-auto flex max-w-[1232px] items-center justify-between px-6 pb-20" aria-live="polite">
+          <button
+            type="button"
+            onClick={() => fetchPage(page - 1, "prev")}
+            disabled={page <= 1 || isFetching}
+            className="inline-flex h-9 items-center justify-center rounded-full px-4 text-sm font-medium"
+            style={{
+              border: "1px solid var(--border-gray)",
+              color: "var(--text-primary)",
+              opacity: page <= 1 || isFetching ? 0.4 : 1,
+            }}
+          >
+            Previous
+          </button>
+          <span className="text-sm" style={{ color: "var(--text-muted)" }}>
+            Page {page} of {totalPages}
+          </span>
+          <button
+            type="button"
+            onClick={() => fetchPage(page + 1, "next")}
+            disabled={page >= totalPages || isFetching}
+            className="inline-flex h-9 items-center justify-center rounded-full px-4 text-sm font-medium"
+            style={{
+              border: "1px solid var(--border-gray)",
+              color: "var(--text-primary)",
+              opacity: page >= totalPages || isFetching ? 0.4 : 1,
+            }}
+          >
+            Next
+          </button>
+        </div>
       ) : null}
 
       {selected ? (() => {

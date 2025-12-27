@@ -38,8 +38,8 @@ export default function RegisterPage() {
   }
 
   return (
-    <main className="page-shell py-16">
-      <div className="section-card p-8 max-w-lg mx-auto">
+    <main className="page-shell flex min-h-[calc(100vh-73px)] items-center justify-center py-16">
+      <div className="section-card w-full max-w-xl p-8 md:p-10 mx-auto">
         <h2 className="text-2xl font-semibold" style={{ fontFamily: "var(--font-display)" }}>
           Create your account
         </h2>

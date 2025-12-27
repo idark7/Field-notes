@@ -1,9 +1,23 @@
 import { prisma } from "@/lib/db";
 import { FieldNotesGrid } from "@/components/FieldNotesGrid";
+import { SiteFooter } from "@/components/SiteFooter";
 
 export const dynamic = "force-dynamic";
 
-export default async function FieldNotesIndexPage() {
+export default async function FieldNotesIndexPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ q?: string; focus?: string; page?: string; category?: string; tag?: string; author?: string }>;
+}) {
+  const resolvedSearchParams = searchParams ? await searchParams : undefined;
+  const initialQuery = resolvedSearchParams?.q ? decodeURIComponent(resolvedSearchParams.q) : "";
+  const autoFocus = resolvedSearchParams?.focus === "1" || resolvedSearchParams?.focus === "true";
+  const categoryParam = resolvedSearchParams?.category ? decodeURIComponent(resolvedSearchParams.category) : "";
+  const tagParam = resolvedSearchParams?.tag ? decodeURIComponent(resolvedSearchParams.tag) : "";
+  const authorParam = resolvedSearchParams?.author ? decodeURIComponent(resolvedSearchParams.author) : "";
+  const currentPage = Math.max(1, Number.parseInt(resolvedSearchParams?.page || "1", 10) || 1);
+  const pageSize = 6;
+
   let posts: Array<{
     id: string;
     slug: string;
@@ -20,11 +34,45 @@ export default async function FieldNotesIndexPage() {
   }> = [];
   let categories: Array<{ id: string; name: string }> = [];
   let tags: Array<{ id: string; name: string }> = [];
+  let totalCount = 0;
 
   try {
-    [posts, categories, tags] = await Promise.all([
+    const where: {
+      status: "APPROVED";
+      OR?: Array<Record<string, unknown>>;
+      categories?: { some: { category: { name: { equals: string; mode: "insensitive" } } } };
+      tags?: { some: { tag: { name: { equals: string; mode: "insensitive" } } } };
+      author?: { name: { equals: string; mode: "insensitive" } };
+    } = {
+      status: "APPROVED",
+    };
+
+    if (initialQuery) {
+      where.OR = [
+        { title: { contains: initialQuery, mode: "insensitive" as const } },
+        { excerpt: { contains: initialQuery, mode: "insensitive" as const } },
+        { content: { contains: initialQuery, mode: "insensitive" as const } },
+        { author: { name: { contains: initialQuery, mode: "insensitive" as const } } },
+        { categories: { some: { category: { name: { contains: initialQuery, mode: "insensitive" as const } } } } },
+        { tags: { some: { tag: { name: { contains: initialQuery, mode: "insensitive" as const } } } } },
+      ];
+    }
+
+    if (categoryParam && categoryParam !== "All") {
+      where.categories = { some: { category: { name: { equals: categoryParam, mode: "insensitive" } } } };
+    }
+
+    if (tagParam && tagParam !== "All") {
+      where.tags = { some: { tag: { name: { equals: tagParam, mode: "insensitive" } } } };
+    }
+
+    if (authorParam && authorParam !== "All") {
+      where.author = { name: { equals: authorParam, mode: "insensitive" } };
+    }
+
+    [posts, totalCount, categories, tags] = await Promise.all([
       prisma.post.findMany({
-        where: { status: "APPROVED" },
+        where,
         include: {
           categories: { include: { category: { select: { id: true, name: true } } } },
           tags: { include: { tag: true } },
@@ -33,7 +81,10 @@ export default async function FieldNotesIndexPage() {
           _count: { select: { likes: true, comments: true } },
         },
         orderBy: { createdAt: "desc" },
+        take: pageSize,
+        skip: (currentPage - 1) * pageSize,
       }),
+      prisma.post.count({ where }),
       prisma.category.findMany({ orderBy: { name: "asc" } }),
       prisma.tag.findMany({ orderBy: { name: "asc" } }),
     ]);
@@ -43,7 +94,17 @@ export default async function FieldNotesIndexPage() {
 
   return (
     <main style={{ background: 'var(--bg-white)', color: 'var(--text-primary)' }}>
-      <FieldNotesGrid posts={posts} categories={categories} tags={tags} />
+      <FieldNotesGrid
+        posts={posts}
+        categories={categories}
+        tags={tags}
+        initialQuery={initialQuery}
+        autoFocus={autoFocus}
+        currentPage={currentPage}
+        pageSize={pageSize}
+        totalCount={totalCount}
+      />
+      <SiteFooter />
     </main>
   );
 }
