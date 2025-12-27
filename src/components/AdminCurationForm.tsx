@@ -65,10 +65,6 @@ export function AdminCurationForm({
       if (current.includes(id)) {
         return current.filter((item) => item !== id);
       }
-      if (current.length >= 3) {
-        setLocalError("Pick up to 3 editorial stories.");
-        return current;
-      }
       if (id === featuredId) {
         setLocalError("Featured story cannot also be an editorial pick.");
         return current;
@@ -225,14 +221,14 @@ export function AdminCurationForm({
                 Editorial picks
               </p>
               <h3 className="mt-2 text-lg font-semibold" style={{ color: "var(--text-primary)" }}>
-                Curate up to three highlights
+                Curate editorial highlights
               </h3>
             </div>
             <span
               className="rounded-full px-3 py-1 text-[11px] uppercase tracking-[0.3em]"
               style={{ background: "var(--bg-gray-100)", color: "var(--text-muted)" }}
             >
-              {editorialOrder.length}/3 selected
+              {editorialOrder.length} selected
             </span>
           </div>
           <p className="mt-3 text-sm" style={{ color: "var(--text-muted)" }}>
@@ -307,7 +303,7 @@ export function AdminCurationForm({
           <div className="mt-4 grid gap-3">
             {editorialOrder.length === 0 ? (
               <p className="text-sm" style={{ color: "var(--text-muted)" }}>
-                Select up to three stories to enable ordering.
+                Select stories to enable ordering.
               </p>
             ) : (
               editorialOrder.map((postId, index) => {

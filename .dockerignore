@@ -1,0 +1,13 @@
+.DS_Store
+.git
+.gitignore
+.next
+node_modules
+.vscode
+.env
+*.log
+*.zip
+*.tgz
+app.zip
+app.tgz
+app-min.zip

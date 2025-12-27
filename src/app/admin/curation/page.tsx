@@ -20,10 +20,6 @@ async function updateCuration(formData: FormData) {
     .filter(Boolean);
 
   const uniqueEditorial = Array.from(new Set(editorialPickIds));
-  if (uniqueEditorial.length > 3) {
-    redirect("/admin/curation?error=Select%20up%20to%203%20editorial%20picks.");
-  }
-
   if (featuredPostId && uniqueEditorial.includes(featuredPostId)) {
     redirect("/admin/curation?error=Featured%20story%20cannot%20also%20be%20an%20editorial%20pick.");
   }
@@ -121,7 +117,7 @@ export default async function AdminCurationPage({
               Home curation
             </h2>
             <p className="mt-2 text-sm" style={{ color: "var(--text-muted)" }}>
-              Shape the home page narrative by featuring one story and highlighting up to three editorial picks.
+              Shape the home page narrative by featuring one story and highlighting editorial picks.
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-3">

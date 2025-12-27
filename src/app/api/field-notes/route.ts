@@ -6,11 +6,12 @@ export async function GET(request: Request) {
   const rawPage = Number.parseInt(searchParams.get("page") || "1", 10);
   const rawPageSize = Number.parseInt(searchParams.get("pageSize") || "6", 10);
   const page = Number.isNaN(rawPage) || rawPage < 1 ? 1 : rawPage;
-  const pageSize = Number.isNaN(rawPageSize) || rawPageSize < 1 ? 6 : Math.min(rawPageSize, 6);
+  const pageSize = Number.isNaN(rawPageSize) || rawPageSize < 1 ? 6 : Math.min(rawPageSize, 24);
   const query = (searchParams.get("q") || "").trim();
   const category = (searchParams.get("category") || "").trim();
   const tag = (searchParams.get("tag") || "").trim();
   const author = (searchParams.get("author") || "").trim();
+  const collection = (searchParams.get("collection") || "").trim().toLowerCase();
 
   const where: {
     status: "APPROVED";
@@ -18,6 +19,7 @@ export async function GET(request: Request) {
     categories?: { some: { category: { name: { equals: string; mode: "insensitive" } } } };
     tags?: { some: { tag: { name: { equals: string; mode: "insensitive" } } } };
     author?: { name: { equals: string; mode: "insensitive" } };
+    editorialPickOrder?: { not: null };
   } = {
     status: "APPROVED",
   };
@@ -45,6 +47,10 @@ export async function GET(request: Request) {
     where.author = { name: { equals: author, mode: "insensitive" } };
   }
 
+  if (collection === "editorial") {
+    where.editorialPickOrder = { not: null };
+  }
+
   try {
     const [posts, totalCount] = await Promise.all([
       prisma.post.findMany({
@@ -56,7 +62,7 @@ export async function GET(request: Request) {
           media: { select: { id: true, type: true } },
           _count: { select: { likes: true, comments: true } },
         },
-        orderBy: { createdAt: "desc" },
+        orderBy: collection === "editorial" ? { editorialPickOrder: "asc" } : { createdAt: "desc" },
         take: pageSize,
         skip: (page - 1) * pageSize,
       }),

@@ -50,8 +50,10 @@ function getChecklist(): ChecklistItem[] {
 export function PreSubmitChecklist({ formId, buttonLabel = "Submit for Review" }: PreSubmitChecklistProps) {
   const [open, setOpen] = useState(false);
   const [items, setItems] = useState<ChecklistItem[]>([]);
+  const [submitting, setSubmitting] = useState(false);
 
   function handleSubmit(event: React.MouseEvent<HTMLButtonElement>) {
+    if (submitting) return;
     const next = getChecklist();
     setItems(next);
     const allOk = next.every((item) => item.ok);
@@ -62,6 +64,7 @@ export function PreSubmitChecklist({ formId, buttonLabel = "Submit for Review" }
     }
 
     const form = document.getElementById(formId) as HTMLFormElement | null;
+    setSubmitting(true);
     form?.requestSubmit();
   }
 
@@ -71,8 +74,19 @@ export function PreSubmitChecklist({ formId, buttonLabel = "Submit for Review" }
         type="button"
         onClick={handleSubmit}
         className="bg-[color:var(--accent)] text-white px-4 py-3 rounded-lg text-sm font-semibold"
+        disabled={submitting}
+        aria-busy={submitting}
+        style={submitting ? { opacity: 0.7, cursor: "not-allowed" } : undefined}
       >
-        {buttonLabel}
+        <span className="inline-flex items-center gap-2">
+          {submitting ? (
+            <span
+              className="page-loading-spinner"
+              style={{ borderColor: "rgba(255,255,255,0.4)", borderTopColor: "#ffffff" }}
+            />
+          ) : null}
+          <span>{submitting ? "Submitting..." : buttonLabel}</span>
+        </span>
       </button>
 
       {open ? (
@@ -93,6 +107,7 @@ export function PreSubmitChecklist({ formId, buttonLabel = "Submit for Review" }
               onClick={() => setOpen(false)}
               className="border px-4 py-2 rounded-full text-xs uppercase tracking-[0.2em]"
               style={{ borderColor: 'var(--border-gray)', color: 'var(--text-secondary)' }}
+              disabled={submitting}
             >
               Keep editing
             </button>
@@ -100,11 +115,23 @@ export function PreSubmitChecklist({ formId, buttonLabel = "Submit for Review" }
               type="button"
               onClick={() => {
                 const form = document.getElementById(formId) as HTMLFormElement | null;
+                setSubmitting(true);
                 form?.requestSubmit();
               }}
               className="bg-[color:var(--accent)] text-white px-4 py-2 rounded-full text-xs uppercase tracking-[0.2em]"
+              disabled={submitting}
+              aria-busy={submitting}
+              style={submitting ? { opacity: 0.7, cursor: "not-allowed" } : undefined}
             >
-              Submit anyway
+              <span className="inline-flex items-center gap-2">
+                {submitting ? (
+                  <span
+                    className="page-loading-spinner"
+                    style={{ borderColor: "rgba(255,255,255,0.4)", borderTopColor: "#ffffff" }}
+                  />
+                ) : null}
+                <span>{submitting ? "Submitting..." : "Submit anyway"}</span>
+              </span>
             </button>
           </div>
         </div>

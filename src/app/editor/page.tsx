@@ -302,88 +302,90 @@ export default async function EditorPage({
           </p>
         </section>
       ) : null}
-      <section
-        id="my-stories"
-        className="section-card p-10 mt-10"
-        style={{ scrollMarginTop: "110px" }}
-      >
-        <p className="text-xs uppercase tracking-[0.3em] text-[color:var(--muted)]">
-          My stories
-        </p>
-        <div className="admin-tabs mt-6">
-          {tabs.map((tab) => (
-            <Link
-              key={tab.id}
-              href={showStoriesOnly ? `/editor?view=stories&tab=${tab.id}` : `/editor?tab=${tab.id}`}
-              className={`admin-tab ${activeTab === tab.id ? "admin-tab-active" : ""}`}
-            >
-              <span>{tab.label}</span>
-              <span className="admin-tab-count">{tab.count}</span>
-            </Link>
-          ))}
-        </div>
-        <div className="mt-6 grid gap-4">
-          {submissions.length === 0 ? (
-            <p className="text-sm text-[color:var(--muted)]">
-              No stories in this view yet.
-            </p>
-          ) : (
-            submissions.map((post) => (
-              <div key={post.id} className="border border-[color:var(--border)] rounded-2xl p-4">
-                <div className="flex items-start justify-between gap-6">
-                  <div className="flex-1">
-                    <h4 className="text-lg font-semibold" style={{ fontFamily: "var(--font-display)" }}>
-                      {post.title}
-                    </h4>
-                    <p className="text-xs uppercase tracking-[0.3em] text-[color:var(--muted)] mt-2">
-                      Status: {formatStatus(post.status)}
-                    </p>
-                    <p className="text-xs uppercase tracking-[0.3em] text-[color:var(--muted)] mt-2">
-                      Version {post.revision}
-                    </p>
-                  </div>
-                  <StoryPreviewButton
-                    title={post.title}
-                    excerpt={post.excerpt}
-                    content={post.content}
-                    readTimeMin={post.readTimeMin}
-                    authorName={user.name ?? "You"}
-                  />
-                </div>
-                <div className="mt-4 flex flex-wrap items-center gap-3">
-                  {post.adminNotes.length > 0 ? (
-                    <FeedbackModal
-                      notes={post.adminNotes.map((note) => ({
-                        id: note.id,
-                        postId: post.id,
-                        postTitle: post.title,
-                        status: post.status,
-                        note: note.text,
-                        createdAt: note.createdAt.toISOString(),
-                      }))}
-                      label="View feedback"
-                      title={`Feedback for ${post.title}`}
-                      className="feedback-button-outline"
+      {showStoriesOnly ? (
+        <section
+          id="my-stories"
+          className="section-card p-10 mt-10"
+          style={{ scrollMarginTop: "110px" }}
+        >
+          <p className="text-xs uppercase tracking-[0.3em] text-[color:var(--muted)]">
+            My stories
+          </p>
+          <div className="admin-tabs mt-6">
+            {tabs.map((tab) => (
+              <Link
+                key={tab.id}
+                href={showStoriesOnly ? `/editor?view=stories&tab=${tab.id}` : `/editor?tab=${tab.id}`}
+                className={`admin-tab ${activeTab === tab.id ? "admin-tab-active" : ""}`}
+              >
+                <span>{tab.label}</span>
+                <span className="admin-tab-count">{tab.count}</span>
+              </Link>
+            ))}
+          </div>
+          <div className="mt-6 grid gap-4">
+            {submissions.length === 0 ? (
+              <p className="text-sm text-[color:var(--muted)]">
+                No stories in this view yet.
+              </p>
+            ) : (
+              submissions.map((post) => (
+                <div key={post.id} className="border border-[color:var(--border)] rounded-2xl p-4">
+                  <div className="flex items-start justify-between gap-6">
+                    <div className="flex-1">
+                      <h4 className="text-lg font-semibold" style={{ fontFamily: "var(--font-display)" }}>
+                        {post.title}
+                      </h4>
+                      <p className="text-xs uppercase tracking-[0.3em] text-[color:var(--muted)] mt-2">
+                        Status: {formatStatus(post.status)}
+                      </p>
+                      <p className="text-xs uppercase tracking-[0.3em] text-[color:var(--muted)] mt-2">
+                        Version {post.revision}
+                      </p>
+                    </div>
+                    <StoryPreviewButton
+                      title={post.title}
+                      excerpt={post.excerpt}
+                      content={post.content}
+                      readTimeMin={post.readTimeMin}
+                      authorName={user.name ?? "You"}
                     />
-                  ) : null}
-                  {post.status === "PENDING" && user.role !== "ADMIN" ? (
-                    <span className="text-xs uppercase tracking-[0.3em] text-[color:var(--muted)]">
-                      Locked
-                    </span>
-                  ) : (
-                    <a
-                      href={`/editor/edit/${post.id}`}
-                      className="text-xs uppercase tracking-[0.3em] text-[color:var(--accent)]"
-                    >
-                      {user.role === "ADMIN" && post.authorId === user.id ? "Edit story" : "Edit and resubmit"}
-                    </a>
-                  )}
+                  </div>
+                  <div className="mt-4 flex flex-wrap items-center gap-3">
+                    {post.adminNotes.length > 0 ? (
+                      <FeedbackModal
+                        notes={post.adminNotes.map((note) => ({
+                          id: note.id,
+                          postId: post.id,
+                          postTitle: post.title,
+                          status: post.status,
+                          note: note.text,
+                          createdAt: note.createdAt.toISOString(),
+                        }))}
+                        label="View feedback"
+                        title={`Feedback for ${post.title}`}
+                        className="feedback-button-outline"
+                      />
+                    ) : null}
+                    {post.status === "PENDING" && user.role !== "ADMIN" ? (
+                      <span className="text-xs uppercase tracking-[0.3em] text-[color:var(--muted)]">
+                        Locked
+                      </span>
+                    ) : (
+                      <a
+                        href={`/editor/edit/${post.id}`}
+                        className="text-xs uppercase tracking-[0.3em] text-[color:var(--accent)]"
+                      >
+                        {user.role === "ADMIN" && post.authorId === user.id ? "Edit story" : "Edit and resubmit"}
+                      </a>
+                    )}
+                  </div>
                 </div>
-              </div>
-            ))
-          )}
-        </div>
-      </section>
+              ))
+            )}
+          </div>
+        </section>
+      ) : null}
     </main>
   );
 }

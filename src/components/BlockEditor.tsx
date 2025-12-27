@@ -56,6 +56,11 @@ type FormatSelection = {
   selectionEnd: number;
 };
 
+function normalizeHeadingLevel(level?: Block["level"]): NonNullable<Block["level"]> {
+  if (level === "h1" || level === "h3") return level;
+  return "h2";
+}
+
 function parseInitialBlocks(content: string | null | undefined, defaultType: BlockType): Block[] {
   if (!content) {
     return [
@@ -70,8 +75,7 @@ function parseInitialBlocks(content: string | null | undefined, defaultType: Blo
   try {
     const parsed = JSON.parse(content);
     if (Array.isArray(parsed)) {
-      const filtered = parsed.filter((block) => block.type !== "heading");
-      if (!filtered.length) {
+      if (!parsed.length) {
         return [
           {
             id: "block-0",
@@ -80,10 +84,11 @@ function parseInitialBlocks(content: string | null | undefined, defaultType: Blo
           },
         ];
       }
-      return filtered.map((block, index) => ({
+      return parsed.map((block, index) => ({
         id: block.id || `block-${index}`,
         type: block.type as BlockType,
         text: block.text ?? "",
+        level: block.type === "heading" ? normalizeHeadingLevel(block.level) : undefined,
         items: Array.isArray(block.items) ? block.items : [],
         altText: block.altText ?? "",
         caption: block.caption ?? "",
@@ -115,7 +120,18 @@ function parseInitialBlocks(content: string | null | undefined, defaultType: Blo
   ];
 }
 
+const HEADING_LEVELS: Block["level"][] = ["h1", "h2", "h3"];
+const HEADING_TEXT_CLASSES: Record<NonNullable<Block["level"]>, string> = {
+  h1: "text-[28px] leading-[1.2] font-semibold",
+  h2: "text-[24px] leading-[1.3] font-semibold",
+  h3: "text-[20px] leading-[1.35] font-semibold",
+};
+
 const COMMAND_MAP: Record<string, { type: BlockType; level?: Block["level"] }> = {
+  h1: { type: "heading", level: "h1" },
+  h2: { type: "heading", level: "h2" },
+  h3: { type: "heading", level: "h3" },
+  heading: { type: "heading", level: "h2" },
   paragraph: { type: "paragraph" },
   p: { type: "paragraph" },
   quote: { type: "quote" },
@@ -128,6 +144,9 @@ const COMMAND_MAP: Record<string, { type: BlockType; level?: Block["level"] }> =
 };
 
 const COMMAND_OPTIONS = [
+  { value: "h1", label: "Heading 1" },
+  { value: "h2", label: "Heading 2" },
+  { value: "h3", label: "Heading 3" },
   { value: "paragraph", label: "Paragraph" },
   { value: "quote", label: "Quote" },
   { value: "list", label: "List" },
@@ -511,6 +530,15 @@ export function BlockEditor({
       current.map((block) => {
         if (block.id !== id) return block;
         const baseText = block.text ?? (block.items ? block.items.join("\n") : "");
+        if (type === "heading") {
+          return {
+            ...block,
+            type,
+            text: baseText,
+            items: undefined,
+            level: level ?? normalizeHeadingLevel(block.level),
+          };
+        }
         if (type === "list") {
           return {
             ...block,
@@ -623,6 +651,30 @@ export function BlockEditor({
             >
               <p className="advanced-menu-label">Add block</p>
               <div className="advanced-menu-row">
+                <button type="button" onClick={() => handleAdvancedInsert("heading", "h1")} className="advanced-menu-item">
+                  <svg aria-hidden viewBox="0 0 24 24" className="advanced-menu-icon">
+                    <text x="4" y="16" fontSize="12" fontFamily="system-ui" fill="currentColor">
+                      H1
+                    </text>
+                  </svg>
+                  H1
+                </button>
+                <button type="button" onClick={() => handleAdvancedInsert("heading", "h2")} className="advanced-menu-item">
+                  <svg aria-hidden viewBox="0 0 24 24" className="advanced-menu-icon">
+                    <text x="4" y="16" fontSize="12" fontFamily="system-ui" fill="currentColor">
+                      H2
+                    </text>
+                  </svg>
+                  H2
+                </button>
+                <button type="button" onClick={() => handleAdvancedInsert("heading", "h3")} className="advanced-menu-item">
+                  <svg aria-hidden viewBox="0 0 24 24" className="advanced-menu-icon">
+                    <text x="4" y="16" fontSize="12" fontFamily="system-ui" fill="currentColor">
+                      H3
+                    </text>
+                  </svg>
+                  H3
+                </button>
                 <button type="button" onClick={() => handleAdvancedInsert("paragraph")} className="advanced-menu-item">
                   <svg aria-hidden viewBox="0 0 24 24" className="advanced-menu-icon">
                     <path d="M5 7h14M5 12h14M5 17h10" fill="none" stroke="currentColor" strokeWidth="1.7" />
@@ -719,7 +771,7 @@ export function BlockEditor({
       ) : (
         <div className="editor-command">
           <div className="editor-command-hint">
-            Start typing. Use /paragraph, /media, /gallery, /cover.
+            Start typing. Use /h1, /h2, /h3, /paragraph, /media, /gallery, /cover.
           </div>
           <div className="editor-command-row">
             <div className="relative flex-1">
@@ -792,12 +844,27 @@ export function BlockEditor({
           </div>
         </div>
       )}
-      {blocks.map((block, index) => (
+      {blocks.map((block, index) => {
+        const headingLevel = normalizeHeadingLevel(block.level);
+        const headingClass = HEADING_TEXT_CLASSES[headingLevel];
+        return (
         <div
           key={block.id}
-          draggable={!isAdvanced}
+          draggable={!isAdvanced && activeBlockId !== block.id}
+          onFocusCapture={() => setActiveBlockId(block.id)}
+          onBlurCapture={(event) => {
+            const nextTarget = event.relatedTarget as Node | null;
+            if (nextTarget && event.currentTarget.contains(nextTarget)) return;
+            setActiveBlockId(null);
+          }}
           onDragStart={(event) => {
             if (isAdvanced) return;
+            const target = event.target as HTMLElement | null;
+            const isInteractive = target?.closest("input, textarea, select, button, a");
+            if (isInteractive || activeBlockId === block.id) {
+              event.preventDefault();
+              return;
+            }
             event.dataTransfer.effectAllowed = "move";
             setDragId(block.id);
           }}
@@ -823,9 +890,23 @@ export function BlockEditor({
                 </span>
                 <select
                   value={block.type}
-                  onChange={(event) => updateBlock(block.id, { type: event.target.value as BlockType })}
+                  onChange={(event) => {
+                    const nextType = event.target.value as BlockType;
+                    if (nextType === "heading") {
+                      const baseText = block.text ?? (block.items ? block.items.join("\n") : "");
+                      updateBlock(block.id, {
+                        type: nextType,
+                        text: baseText,
+                        items: undefined,
+                        level: normalizeHeadingLevel(block.level),
+                      });
+                      return;
+                    }
+                    updateBlock(block.id, { type: nextType, level: undefined });
+                  }}
                   className="editor-block-type"
                 >
+                  <option value="heading">Heading</option>
                   <option value="paragraph">Paragraph</option>
                   <option value="quote">Quote</option>
                   <option value="list">List</option>
@@ -859,6 +940,15 @@ export function BlockEditor({
           ) : null}
           {!isAdvanced && activeBlockId === block.id ? (
             <div className="mt-3 flex flex-wrap gap-2 text-[10px] uppercase tracking-[0.2em]" style={{ color: 'var(--text-muted)' }}>
+              <button type="button" onClick={() => addBlockAfter(block.id, "heading", "h1")}>
+                + H1
+              </button>
+              <button type="button" onClick={() => addBlockAfter(block.id, "heading", "h2")}>
+                + H2
+              </button>
+              <button type="button" onClick={() => addBlockAfter(block.id, "heading", "h3")}>
+                + H3
+              </button>
               <button type="button" onClick={() => addBlockAfter(block.id, "paragraph")}>
                 + Paragraph
               </button>
@@ -880,6 +970,56 @@ export function BlockEditor({
               <button type="button" onClick={() => addBlockAfter(block.id, "divider")}>
                 + Divider
               </button>
+            </div>
+          ) : null}
+
+          {block.type === "heading" ? (
+            <div className={isAdvanced ? "mt-4" : "mt-4"}>
+              <div
+                className="flex flex-wrap items-center justify-between gap-3 text-[10px] uppercase tracking-[0.2em]"
+                style={{ color: "var(--text-muted)" }}
+              >
+                <span>Heading level</span>
+                <div className="flex gap-2">
+                  {HEADING_LEVELS.map((level) => {
+                    const isActive = headingLevel === level;
+                    return (
+                      <button
+                        key={`${block.id}-${level}`}
+                        type="button"
+                        onClick={() => updateBlock(block.id, { level })}
+                        className="rounded-full border px-3 py-1 text-[10px] uppercase tracking-[0.2em] transition"
+                        style={{
+                          borderColor: isActive ? "var(--accent)" : "var(--border-gray)",
+                          backgroundColor: isActive ? "var(--accent)" : "transparent",
+                          color: isActive ? "var(--bg-white)" : "var(--text-secondary)",
+                        }}
+                      >
+                        {level.toUpperCase()}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+              <input
+                value={block.text ?? ""}
+                onChange={(event) => updateBlock(block.id, { text: event.target.value })}
+                onContextMenu={(event) => openFormatMenu(event, { blockId: block.id, field: "text" })}
+                placeholder={headingLevel === "h1" ? "Section headline" : headingLevel === "h2" ? "Section heading" : "Subheading"}
+                className={
+                  isAdvanced
+                    ? `mt-2 w-full border-none bg-transparent px-0 py-0 focus:outline-none ${headingClass}`
+                    : `mt-4 w-full border rounded-lg px-4 py-3 ${headingClass}`
+                }
+                style={{
+                  color: "var(--text-primary)",
+                  backgroundColor: isAdvanced ? "transparent" : "var(--bg-gray-50)",
+                  borderColor: isAdvanced ? "transparent" : "var(--border-gray)",
+                }}
+                data-block-id={block.id}
+                data-field="text"
+                onFocus={() => setActiveBlockId(block.id)}
+              />
             </div>
           ) : null}
 
@@ -1266,7 +1406,8 @@ export function BlockEditor({
             </div>
           ) : null}
         </div>
-      ))}
+        );
+      })}
       </div>
 
       {galleryModal ? (
@@ -1362,6 +1503,27 @@ export function BlockEditor({
 
       {!isAdvanced ? (
         <div className="editor-add-row flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => addBlock("heading", "h1")}
+            className="border border-[color:var(--border)] px-3 py-2 rounded-full text-xs uppercase tracking-[0.2em]"
+          >
+            Add H1
+          </button>
+          <button
+            type="button"
+            onClick={() => addBlock("heading", "h2")}
+            className="border border-[color:var(--border)] px-3 py-2 rounded-full text-xs uppercase tracking-[0.2em]"
+          >
+            Add H2
+          </button>
+          <button
+            type="button"
+            onClick={() => addBlock("heading", "h3")}
+            className="border border-[color:var(--border)] px-3 py-2 rounded-full text-xs uppercase tracking-[0.2em]"
+          >
+            Add H3
+          </button>
           <button
             type="button"
             onClick={() => addBlock("paragraph")}

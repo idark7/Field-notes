@@ -34,7 +34,7 @@ function extractTextFromBlocks(content: string) {
             .join(" ");
         }
         if (block.type === "heading") {
-          return "";
+          return stripInlineFormatting(block.text || "");
         }
         return stripInlineFormatting(block.text || "");
       })

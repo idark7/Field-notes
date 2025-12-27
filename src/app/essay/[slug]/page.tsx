@@ -124,7 +124,19 @@ function renderBlocks(
     const key = block.id || `${block.type ?? "block"}-${index}`;
 
     if (block.type === "heading") {
-      return null;
+      const level = block.level === "h1" || block.level === "h3" ? block.level : "h2";
+      const HeadingTag = level === "h1" ? "h1" : level === "h3" ? "h3" : "h2";
+      const headingClass =
+        level === "h1"
+          ? "text-[30px] leading-[38px] font-semibold tracking-[-0.4px]"
+          : level === "h3"
+            ? "text-[20px] leading-[28px] font-semibold tracking-[-0.2px]"
+            : "text-[24px] leading-[32px] font-semibold tracking-[-0.3px]";
+      return (
+        <HeadingTag key={key} className={headingClass} style={{ color: "var(--text-primary)" }}>
+          {renderInlineText(block.text ?? "")}
+        </HeadingTag>
+      );
     }
 
     if (block.type === "quote") {

@@ -2,6 +2,7 @@ import Link from "next/link";
 import starIcon from "@/app/assets/star.svg";
 import { prisma } from "@/lib/db";
 import { SiteFooter } from "@/components/SiteFooter";
+import { StoryCoverImage } from "@/components/StoryCoverImage";
 
 export const dynamic = "force-dynamic";
 
@@ -103,25 +104,9 @@ export default async function FieldNotesPage() {
       },
       include: postInclude,
       orderBy: { editorialPickOrder: "asc" },
-      take: 3,
+      take: 6,
     });
-
-    const editorialFallbackNeeded = 3 - editorialSelected.length;
-    const editorialFallback = editorialFallbackNeeded
-      ? await prisma.post.findMany({
-          where: {
-            status: "APPROVED",
-            id: {
-              notIn: [featured?.id, ...editorialSelected.map((post) => post.id)].filter(Boolean) as string[],
-            },
-          },
-          include: postInclude,
-          orderBy: { createdAt: "desc" },
-          take: editorialFallbackNeeded,
-        })
-      : [];
-
-    editorialPicks = [...editorialSelected, ...editorialFallback];
+    editorialPicks = editorialSelected;
 
     const curatedIds = [featured?.id, ...editorialPicks.map((post) => post.id)].filter(Boolean) as string[];
     fieldNotes = await prisma.post.findMany({
@@ -180,7 +165,7 @@ export default async function FieldNotesPage() {
               >
                 {featuredMediaId ? (
                   <div className="order-2 md:order-1">
-                    <img
+                    <StoryCoverImage
                       src={`/api/media/${featuredMediaId}`}
                       alt={featured.title}
                       className="h-[240px] w-full rounded-[10px] object-cover md:h-[375px]"
@@ -239,7 +224,7 @@ export default async function FieldNotesPage() {
               >
                 Editorial Picks
               </h2>
-              <Link href="/field-notes" className="text-[16px]" style={{ color: 'var(--text-tertiary)' }}>
+              <Link href="/field-notes?collection=editorial" className="text-[16px]" style={{ color: 'var(--text-tertiary)' }}>
                 View all -&gt;
               </Link>
             </div>
@@ -258,14 +243,11 @@ export default async function FieldNotesPage() {
                     <h3 className="mt-2 text-[20px] font-semibold leading-[28px] transition group-hover:opacity-80" style={{ color: 'var(--text-primary)' }}>
                       {post.title}
                     </h3>
-                    {mediaId ? (
-                      <div
-                        className="story-cover mt-3 h-[243px] w-full rounded-[10px]"
-                        style={{ backgroundImage: `url(/api/media/${mediaId})` }}
-                        role="img"
-                        aria-label={post.title}
-                      />
-                    ) : null}
+                    <StoryCoverImage
+                      src={mediaId ? `/api/media/${mediaId}` : undefined}
+                      alt={post.title}
+                      className="story-cover mt-3 h-[243px] w-full rounded-[10px] object-cover"
+                    />
                     <p className="mt-3 text-[16px] leading-[24px] line-clamp-2" style={{ color: 'var(--text-tertiary)' }}>
                       {post.excerpt ?? "Discover this travel story."}
                     </p>
@@ -359,14 +341,11 @@ export default async function FieldNotesPage() {
                     <h3 className="mt-2 text-[20px] font-semibold leading-[28px] transition group-hover:opacity-80" style={{ color: 'var(--text-primary)' }}>
                       {post.title}
                     </h3>
-                    {mediaId ? (
-                      <div
-                        className="story-cover mt-3 h-[243px] w-full rounded-[10px]"
-                        style={{ backgroundImage: `url(/api/media/${mediaId})` }}
-                        role="img"
-                        aria-label={post.title}
-                      />
-                    ) : null}
+                    <StoryCoverImage
+                      src={mediaId ? `/api/media/${mediaId}` : undefined}
+                      alt={post.title}
+                      className="story-cover mt-3 h-[243px] w-full rounded-[10px] object-cover"
+                    />
                     <p className="mt-3 text-[16px] leading-[24px] line-clamp-2" style={{ color: 'var(--text-tertiary)' }}>
                       {post.excerpt ?? "Discover this travel story."}
                     </p>

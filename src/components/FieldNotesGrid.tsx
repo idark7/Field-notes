@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { extractPreviewText } from "@/lib/utils";
+import { StoryCoverImage } from "@/components/StoryCoverImage";
 
 type Category = {
   id: string;
@@ -30,15 +31,6 @@ type Post = {
   _count: { likes: number; comments: number };
 };
 
-function getCoverStyle(mediaId: string | undefined) {
-  if (!mediaId) return undefined;
-  return {
-    backgroundImage: `url(/api/media/${mediaId})`,
-    backgroundSize: "cover",
-    backgroundPosition: "center",
-  };
-}
-
 function getInitials(name: string) {
   return name
     .split(" ")
@@ -59,6 +51,7 @@ type FieldNotesGridProps = {
   pageSize?: number;
   totalCount?: number;
   basePath?: string;
+  initialCollection?: "all" | "editorial";
 };
 
 function formatRelative(value: string | Date) {
@@ -86,11 +79,13 @@ export function FieldNotesGrid({
   pageSize = 6,
   totalCount,
   basePath = "/field-notes",
+  initialCollection = "all",
 }: FieldNotesGridProps) {
   const router = useRouter();
   const [activeCategory, setActiveCategory] = useState<string>("All");
   const [activeTag, setActiveTag] = useState<string>("All");
   const [activeAuthor, setActiveAuthor] = useState<string>("All");
+  const [activeCollection, setActiveCollection] = useState<"all" | "editorial">(initialCollection);
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [selected, setSelected] = useState<Post | null>(null);
   const [expanded, setExpanded] = useState(false);
@@ -99,15 +94,30 @@ export function FieldNotesGrid({
   const [displayPosts, setDisplayPosts] = useState<Post[]>(posts);
   const [displayTotal, setDisplayTotal] = useState<number>(totalCount ?? posts.length);
   const [page, setPage] = useState(currentPage);
+  const [perPage, setPerPage] = useState(pageSize);
   const [isFetching, setIsFetching] = useState(false);
   const [slideDirection, setSlideDirection] = useState<"next" | "prev">("next");
   const [animationKey, setAnimationKey] = useState(0);
   const initialLoad = useRef(true);
+  const defaultPageSize = 6;
 
   const authorOptions = useMemo(() => {
     const names = posts.map((post) => post.author.name).filter(Boolean);
     return Array.from(new Set(names)).sort((a, b) => a.localeCompare(b));
   }, [posts]);
+
+  const headingCopy =
+    activeCollection === "editorial"
+      ? {
+          title: "Editorial Picks",
+          description:
+            "A curated set of editor-selected stories, ordered by our editorial team for this collection.",
+        }
+      : {
+          title: "All Field Notes",
+          description:
+            "Explore every travel story in our editorial archive. Browse recent essays, rediscover timeless journeys, and dive deeper into the voices of our travelers.",
+        };
 
   useEffect(() => {
     if (viewMode === "list" && selected) {
@@ -137,6 +147,10 @@ export function FieldNotesGrid({
   }, [currentPage]);
 
   useEffect(() => {
+    setPerPage(pageSize);
+  }, [pageSize]);
+
+  useEffect(() => {
     if (initialLoad.current) {
       initialLoad.current = false;
       return;
@@ -147,13 +161,13 @@ export function FieldNotesGrid({
     }, 300);
 
     return () => clearTimeout(timer);
-  }, [query, activeCategory, activeTag, activeAuthor]);
+  }, [query, activeCategory, activeTag, activeAuthor, activeCollection, perPage]);
 
   const filtered = displayPosts;
 
   const topGridResults = viewMode === "grid" ? filtered.slice(0, 2) : [];
   const remainingResults = viewMode === "grid" ? filtered.slice(2) : filtered;
-  const totalPages = displayTotal ? Math.max(1, Math.ceil(displayTotal / pageSize)) : 1;
+  const totalPages = displayTotal ? Math.max(1, Math.ceil(displayTotal / perPage)) : 1;
   const showPagination = Boolean(displayTotal && totalPages > 1);
 
   const buildPageHref = (page: number) => {
@@ -170,6 +184,12 @@ export function FieldNotesGrid({
     if (activeAuthor !== "All") {
       params.set("author", activeAuthor);
     }
+    if (activeCollection !== "all") {
+      params.set("collection", activeCollection);
+    }
+    if (perPage !== defaultPageSize) {
+      params.set("pageSize", String(perPage));
+    }
     if (page > 1) {
       params.set("page", String(page));
     }
@@ -184,7 +204,7 @@ export function FieldNotesGrid({
     try {
       const params = new URLSearchParams();
       params.set("page", String(nextPage));
-      params.set("pageSize", String(pageSize));
+      params.set("pageSize", String(perPage));
       if (query.trim()) {
         params.set("q", query.trim());
       }
@@ -196,6 +216,9 @@ export function FieldNotesGrid({
       }
       if (activeAuthor !== "All") {
         params.set("author", activeAuthor);
+      }
+      if (activeCollection !== "all") {
+        params.set("collection", activeCollection);
       }
 
       const response = await fetch(`/api/field-notes?${params.toString()}`, {
@@ -224,14 +247,11 @@ export function FieldNotesGrid({
         <h3 className="text-xl font-semibold mb-2 group-hover:text-[var(--accent)] transition-colors">
           {post.title}
         </h3>
-        {mediaId ? (
-          <div
-            className="story-cover h-48 w-full rounded-lg mb-4"
-            style={getCoverStyle(mediaId)}
-            role="img"
-            aria-label={post.title}
-          />
-        ) : null}
+        <StoryCoverImage
+          src={mediaId ? `/api/media/${mediaId}` : undefined}
+          alt={post.title}
+          className="story-cover h-48 w-full rounded-lg mb-4 object-cover"
+        />
         <p className="text-[var(--text-secondary)] text-sm mb-4 line-clamp-3">
           {post.excerpt || "Discover this amazing travel story."}
         </p>
@@ -268,11 +288,10 @@ export function FieldNotesGrid({
                 className="mt-3 text-[32px] font-semibold md:text-[48px] md:leading-[56px]"
                 style={{ fontFamily: "var(--font-display)" }}
               >
-                All Field Notes
+                {headingCopy.title}
               </h1>
               <p className="mt-4 max-w-2xl text-[18px] leading-[29px] text-[var(--text-tertiary)] md:text-[20px] md:leading-[32px]">
-                Explore every travel story in our editorial archive. Browse recent essays, rediscover timeless journeys, and dive
-                deeper into the voices of our travelers.
+                {headingCopy.description}
               </p>
               {topGridResults.length ? (
                 <div className="field-notes-results">
@@ -332,6 +351,17 @@ export function FieldNotesGrid({
                 </div>
               </div>
               <div className="field-notes-panel-section">
+                <p className="field-notes-panel-title">Collection</p>
+                <select
+                  className="field-notes-select"
+                  value={activeCollection}
+                  onChange={(event) => setActiveCollection(event.target.value === "editorial" ? "editorial" : "all")}
+                >
+                  <option value="all">All stories</option>
+                  <option value="editorial">Editorial picks</option>
+                </select>
+              </div>
+              <div className="field-notes-panel-section">
                 <p className="field-notes-panel-title">Profile</p>
                 <select
                   className="field-notes-select"
@@ -342,6 +372,25 @@ export function FieldNotesGrid({
                   {authorOptions.map((name) => (
                     <option key={name} value={name}>
                       {name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="field-notes-panel-section">
+                <p className="field-notes-panel-title">Stories per page</p>
+                <select
+                  className="field-notes-select"
+                  value={String(perPage)}
+                  onChange={(event) => {
+                    const nextSize = Number.parseInt(event.target.value, 10);
+                    if (!Number.isNaN(nextSize)) {
+                      setPerPage(nextSize);
+                    }
+                  }}
+                >
+                  {[6, 9, 12, 18, 24].map((size) => (
+                    <option key={size} value={size}>
+                      {size} stories
                     </option>
                   ))}
                 </select>

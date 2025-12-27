@@ -136,7 +136,13 @@ export function EditorPreview({ formId }: EditorPreviewProps) {
     return preview.blocks.map((block, index) => {
       const key = block.id || `${block.type}-${index}`;
       if (block.type === "heading") {
-        return null;
+        const level = block.level === "h1" || block.level === "h3" ? block.level : "h2";
+        const HeadingTag = level === "h1" ? "h1" : level === "h3" ? "h3" : "h2";
+        return (
+          <HeadingTag key={key} className={`preview-${level}`}>
+            {renderInlineText(block.text ?? "")}
+          </HeadingTag>
+        );
       }
 
       if (block.type === "quote") {

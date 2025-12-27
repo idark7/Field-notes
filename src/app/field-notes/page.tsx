@@ -7,7 +7,16 @@ export const dynamic = "force-dynamic";
 export default async function FieldNotesIndexPage({
   searchParams,
 }: {
-  searchParams?: Promise<{ q?: string; focus?: string; page?: string; category?: string; tag?: string; author?: string }>;
+  searchParams?: Promise<{
+    q?: string;
+    focus?: string;
+    page?: string;
+    pageSize?: string;
+    category?: string;
+    tag?: string;
+    author?: string;
+    collection?: string;
+  }>;
 }) {
   const resolvedSearchParams = searchParams ? await searchParams : undefined;
   const initialQuery = resolvedSearchParams?.q ? decodeURIComponent(resolvedSearchParams.q) : "";
@@ -15,8 +24,11 @@ export default async function FieldNotesIndexPage({
   const categoryParam = resolvedSearchParams?.category ? decodeURIComponent(resolvedSearchParams.category) : "";
   const tagParam = resolvedSearchParams?.tag ? decodeURIComponent(resolvedSearchParams.tag) : "";
   const authorParam = resolvedSearchParams?.author ? decodeURIComponent(resolvedSearchParams.author) : "";
+  const collectionParam = resolvedSearchParams?.collection ? decodeURIComponent(resolvedSearchParams.collection) : "";
   const currentPage = Math.max(1, Number.parseInt(resolvedSearchParams?.page || "1", 10) || 1);
-  const pageSize = 6;
+  const parsedPageSize = Number.parseInt(resolvedSearchParams?.pageSize || "6", 10);
+  const pageSize = Number.isNaN(parsedPageSize) || parsedPageSize < 1 ? 6 : Math.min(parsedPageSize, 24);
+  const initialCollection = collectionParam.toLowerCase() === "editorial" ? "editorial" : "all";
 
   let posts: Array<{
     id: string;
@@ -43,6 +55,7 @@ export default async function FieldNotesIndexPage({
       categories?: { some: { category: { name: { equals: string; mode: "insensitive" } } } };
       tags?: { some: { tag: { name: { equals: string; mode: "insensitive" } } } };
       author?: { name: { equals: string; mode: "insensitive" } };
+      editorialPickOrder?: { not: null };
     } = {
       status: "APPROVED",
     };
@@ -70,6 +83,10 @@ export default async function FieldNotesIndexPage({
       where.author = { name: { equals: authorParam, mode: "insensitive" } };
     }
 
+    if (initialCollection === "editorial") {
+      where.editorialPickOrder = { not: null };
+    }
+
     [posts, totalCount, categories, tags] = await Promise.all([
       prisma.post.findMany({
         where,
@@ -80,7 +97,7 @@ export default async function FieldNotesIndexPage({
           media: { select: { id: true, type: true } },
           _count: { select: { likes: true, comments: true } },
         },
-        orderBy: { createdAt: "desc" },
+        orderBy: initialCollection === "editorial" ? { editorialPickOrder: "asc" } : { createdAt: "desc" },
         take: pageSize,
         skip: (currentPage - 1) * pageSize,
       }),
@@ -103,6 +120,7 @@ export default async function FieldNotesIndexPage({
         currentPage={currentPage}
         pageSize={pageSize}
         totalCount={totalCount}
+        initialCollection={initialCollection}
       />
       <SiteFooter />
     </main>
