@@ -29,7 +29,7 @@ cat <<'ENV' > .env
 NODE_ENV=production
 JWT_SECRET=change-me-strong-gdt
 # If running over HTTPS keep default; for HTTP-only (temporary) set to false so cookies work
-# COOKIE_SECURE=false
+COOKIE_SECURE=false
 
 # Database (for bundled Postgres in docker-compose.yml)
 POSTGRES_USER=postgres
@@ -86,15 +86,36 @@ This rebuilds the image and restarts the containers.
 docker compose logs -f app
 ```
 
-## 7) (Optional) Reverse proxy + SSL
+## 7) Reverse proxy + HTTPS (Nginx + Let’s Encrypt)
 
-For a custom domain with SSL, put Nginx/Caddy in front of the app and proxy to `localhost:3000`.
+You need a real domain name for a trusted certificate; IP-only will always show “Not Secure”. Point DNS (`A` record) to the VPS public IP first.
 
-Example Nginx upstream:
+### Install Nginx + Certbot
+
+```bash
+sudo apt update
+sudo apt install -y nginx certbot python3-certbot-nginx
+sudo ufw allow 'Nginx Full'   # opens 80/443 if UFW is enabled
+```
+
+### Create Nginx config
+
+Replace `your-domain.com` with your domain. This proxies HTTP→app and handles WebSocket upgrades.
 
 ```nginx
 server {
-    server_name your-domain.com;
+    listen 80;
+    server_name your-domain.com www.your-domain.com;
+    return 301 https://$host$request_uri;
+}
+
+server {
+    listen 443 ssl http2;
+    server_name your-domain.com www.your-domain.com;
+
+    # Managed by Certbot after issuance
+    ssl_certificate     /etc/letsencrypt/live/your-domain.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/your-domain.com/privkey.pem;
 
     location / {
         proxy_pass http://127.0.0.1:3000;
@@ -106,4 +127,34 @@ server {
         proxy_set_header X-Forwarded-Proto $scheme;
     }
 }
+```
+
+Save as `/etc/nginx/sites-available/field-notes.conf` and enable it:
+
+```bash
+sudo ln -s /etc/nginx/sites-available/field-notes.conf /etc/nginx/sites-enabled/
+sudo nginx -t && sudo systemctl reload nginx
+```
+
+### Obtain and install TLS cert
+
+```bash
+sudo certbot --nginx -d your-domain.com -d www.your-domain.com
+```
+
+Certbot will inject the correct `ssl_certificate` paths and set up auto-renewal. Test renewal:
+
+```bash
+sudo certbot renew --dry-run
+```
+
+### App config for HTTPS
+
+- In `.env`, set `COOKIE_SECURE=true` so auth cookies use `Secure` flag.
+- Keep the app listening on port `3000` (inside Docker). Nginx handles :80/:443.
+
+### Restart stack (if app config changed)
+
+```bash
+docker compose up -d --build
 ```
