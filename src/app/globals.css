@@ -477,6 +477,28 @@ body.advanced-editor-body {
   color: var(--text-muted);
 }
 
+.editor-saving-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(10, 8, 6, 0.45);
+  backdrop-filter: blur(3px);
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.editor-saving-panel {
+  padding: 14px 22px;
+  border-radius: 999px;
+  background: rgba(12, 10, 8, 0.85);
+  color: #fff;
+  font-size: 12px;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
 .editor-media-resize-wrapper.is-resizing .editor-media-resize-handle {
   border-color: var(--accent);
   box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
@@ -1846,6 +1868,87 @@ a {
   background-repeat: no-repeat;
 }
 
+.story-hero {
+  position: relative;
+  border-radius: 18px;
+  padding: 28px;
+  overflow: hidden;
+  background: transparent;
+}
+
+.story-hero-covered {
+  color: #fff;
+  background: linear-gradient(160deg, rgba(12, 10, 8, 0.75), rgba(12, 10, 8, 0.3));
+  background-size: cover;
+  background-position: center;
+}
+
+.story-hero-media {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.story-hero-overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(160deg, rgba(10, 8, 6, 0.92), rgba(10, 8, 6, 0.6));
+}
+
+.story-hero-content {
+  position: relative;
+  z-index: 1;
+}
+
+.story-hero-covered .story-hero-content h1 {
+  color: #fff !important;
+  text-shadow: 0 6px 18px rgba(0, 0, 0, 0.4);
+}
+
+.story-hero-covered .story-hero-content p {
+  color: rgba(255, 255, 255, 0.92) !important;
+  text-shadow: 0 4px 16px rgba(0, 0, 0, 0.45);
+}
+
+.story-hero-covered .story-hero-content .story-hero-category {
+  color: #f54900 !important;
+}
+
+.story-hero-covered .story-hero-content .edit-story-note {
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.story-hero-covered .story-hero-content .edit-story-link {
+  border-color: rgba(255, 255, 255, 0.35);
+  background: rgba(12, 10, 8, 0.45);
+  color: #fff;
+}
+
+.story-hero-covered .story-hero-content .edit-story-link:hover {
+  border-color: rgba(255, 255, 255, 0.7);
+  background: rgba(12, 10, 8, 0.6);
+  color: #fff;
+}
+
+.story-hero-covered .story-hero-content .border-b {
+  border-color: rgba(255, 255, 255, 0.2) !important;
+}
+
+.story-hero-covered .story-hero-content .story-hero-meta {
+  color: rgba(255, 255, 255, 0.9) !important;
+  text-shadow: 0 3px 10px rgba(0, 0, 0, 0.45);
+}
+
+.story-cover-block {
+  background: linear-gradient(160deg, rgba(17, 13, 9, 0.72), rgba(17, 13, 9, 0.28));
+}
+
+.story-cover-overlay {
+  background: linear-gradient(180deg, rgba(10, 10, 10, 0.6), rgba(10, 10, 10, 0.25));
+}
+
 .card-loading {
   position: relative;
   overflow: hidden;
@@ -2038,6 +2141,39 @@ a {
   gap: 18px;
 }
 
+.preview-hero {
+  position: relative;
+  border-radius: 18px;
+  padding: 22px;
+  overflow: hidden;
+  background: var(--bg-gray-100);
+  background-size: cover;
+  background-position: center;
+}
+
+.preview-hero-covered {
+  color: #fff;
+}
+
+.preview-hero-media {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.preview-hero-overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(160deg, rgba(12, 10, 8, 0.82), rgba(12, 10, 8, 0.5));
+}
+
+.preview-hero-content {
+  position: relative;
+  z-index: 1;
+}
+
 .preview-header {
   display: flex;
   flex-wrap: wrap;
@@ -2075,6 +2211,23 @@ a {
   font-size: 13px;
   font-weight: 600;
   color: var(--text-primary);
+}
+
+.preview-hero-covered .preview-title,
+.preview-hero-covered .preview-excerpt,
+.preview-hero-covered .preview-eyebrow {
+  color: rgba(255, 255, 255, 0.92);
+  text-shadow: 0 4px 14px rgba(0, 0, 0, 0.45);
+}
+
+.preview-hero-covered .preview-excerpt {
+  color: rgba(255, 255, 255, 0.78);
+}
+
+.preview-hero-covered .preview-close {
+  border-color: rgba(255, 255, 255, 0.4);
+  background: rgba(12, 10, 8, 0.35);
+  color: #fff;
 }
 
 .story-preview-meta {
@@ -2208,7 +2361,7 @@ a {
   border-radius: 18px;
   min-height: 200px;
   overflow: hidden;
-  background: linear-gradient(120deg, #fef3c7, #fed7aa, #fde68a);
+  background: linear-gradient(160deg, rgba(17, 13, 9, 0.72), rgba(17, 13, 9, 0.28));
 }
 
 .preview-background-media {
@@ -2219,14 +2372,10 @@ a {
   object-fit: cover;
 }
 
-.dark .preview-background {
-  background: linear-gradient(120deg, #78350f, #9a3412, #7c2d12);
-}
-
 .preview-background-overlay {
   position: absolute;
   inset: 0;
-  background: linear-gradient(180deg, rgba(12, 12, 12, 0.55), rgba(12, 12, 12, 0.15));
+  background: linear-gradient(180deg, rgba(10, 10, 10, 0.6), rgba(10, 10, 10, 0.25));
 }
 
 .preview-background-content {

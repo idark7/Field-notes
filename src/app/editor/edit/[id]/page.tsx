@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { getSessionUser } from "@/lib/auth";
 import { estimateReadTimeMinutes, extractPreviewText } from "@/lib/utils";
+import { getMediaSortOrders } from "@/lib/mediaSort";
 import { BlockEditor } from "@/components/BlockEditor";
 import { SeoFields } from "@/components/SeoFields";
 import { EditorAutosave } from "@/components/EditorAutosave";
@@ -120,23 +121,28 @@ async function updatePost(formData: FormData) {
     });
   }
 
-  const altTexts = altTextRaw ? altTextRaw.split("\n").map((line) => line.trim()) : [];
-  const files = formData.getAll("mediaFiles");
-  for (const [index, file] of files.entries()) {
-    if (!(file instanceof File)) continue;
-    const arrayBuffer = await file.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
-    await prisma.media.create({
-      data: {
-        postId,
-        type: file.type.startsWith("video") ? "VIDEO" : "PHOTO",
-        data: buffer,
-        fileName: file.name,
-        mimeType: file.type,
-        altText: altTexts[index] || file.name,
-        sortOrder: index,
-      },
+  void altTextRaw;
+
+  const mediaPreviewRaw = String(formData.get("mediaPreview") || "");
+  const mediaOrders = getMediaSortOrders(content, mediaPreviewRaw);
+  if (mediaOrders.length) {
+    const mediaIds = mediaOrders.map((order) => order.id);
+    const existingMedia = await prisma.media.findMany({
+      where: { id: { in: mediaIds }, postId },
+      select: { id: true },
     });
+    const allowedIds = new Set(existingMedia.map((item) => item.id));
+    const updates = mediaOrders.filter((order) => allowedIds.has(order.id));
+    if (updates.length) {
+      await prisma.$transaction(
+        updates.map((order) =>
+          prisma.media.update({
+            where: { id: order.id },
+            data: { sortOrder: order.sortOrder },
+          })
+        )
+      );
+    }
   }
 
   if (status === "APPROVED") {
@@ -220,6 +226,10 @@ export default async function EditPostPage({ params }: { params: Promise<{ id: s
       categories: { include: { category: true } },
       adminNotes: { orderBy: { createdAt: "desc" } },
       revisions: { orderBy: { revision: "desc" } },
+      media: {
+        orderBy: { sortOrder: "asc" },
+        select: { id: true, mimeType: true, altText: true, fileName: true, sortOrder: true },
+      },
     },
   });
 
@@ -290,7 +300,7 @@ export default async function EditPostPage({ params }: { params: Promise<{ id: s
                   id="editor-title"
                   data-autosave="title"
                 />
-                <BlockEditor initialContent={post.content} />
+                <BlockEditor initialContent={post.content} initialMedia={post.media} />
                 <div className="text-sm text-[color:var(--muted)]">
                   Add a media, gallery, or cover photo block for each file and include SEO-ready alt text.
                 </div>

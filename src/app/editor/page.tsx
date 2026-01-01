@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import { PostStatus } from "@prisma/client";
 import { getSessionUser } from "@/lib/auth";
 import { estimateReadTimeMinutes, extractPreviewText, slugify } from "@/lib/utils";
+import { getMediaSortOrders } from "@/lib/mediaSort";
 import { BlockEditor } from "@/components/BlockEditor";
 import { SeoFields } from "@/components/SeoFields";
 import { EditorAutosave } from "@/components/EditorAutosave";
@@ -29,6 +30,7 @@ async function createPost(formData: FormData) {
   const categoriesRaw = String(formData.get("categories") || "").trim();
   const altTextRaw = String(formData.get("altText") || "").trim();
   const statusRaw = String(formData.get("status") || "").trim();
+  const postId = String(formData.get("postId") || "").trim();
 
   if (!title || !content) {
     throw new Error("Title and content are required");
@@ -47,73 +49,121 @@ async function createPost(formData: FormData) {
     ? categoriesRaw.split(",").map((cat) => cat.trim()).filter(Boolean)
     : [];
 
-  const altTexts = altTextRaw ? altTextRaw.split("\n").map((line) => line.trim()) : [];
-  const files = formData.getAll("mediaFiles");
+  let post = null as null | { id: string; slug: string; revision: number; status: PostStatus };
+  if (postId) {
+    const existing = await prisma.post.findUnique({
+      where: { id: postId },
+      select: { id: true, slug: true, revision: true, status: true, authorId: true },
+    });
+    if (!existing || (existing.authorId !== user.id && user.role !== "ADMIN")) {
+      redirect("/editor");
+    }
+    const nextSlug = existing.status === "DRAFT" ? `${slugBase}-${existing.id.slice(-6)}` : existing.slug;
+    post = await prisma.post.update({
+      where: { id: existing.id },
+      data: {
+        title,
+        slug: nextSlug,
+        excerpt: resolvedExcerpt,
+        content,
+        metaTitle: metaTitle || null,
+        metaDesc: metaDesc || null,
+        status,
+        readTimeMin,
+      },
+    });
+    const revisionCount = await prisma.postRevision.count({ where: { postId: existing.id } });
+    if (revisionCount === 0) {
+      await prisma.postRevision.create({
+        data: {
+          postId: existing.id,
+          revision: existing.revision,
+          title,
+          excerpt: resolvedExcerpt,
+          content,
+          metaTitle: metaTitle || null,
+          metaDesc: metaDesc || null,
+        },
+      });
+    }
+  } else {
+    post = await prisma.post.create({
+      data: {
+        authorId: user.id,
+        title,
+        slug,
+        excerpt: resolvedExcerpt,
+        content,
+        metaTitle: metaTitle || null,
+        metaDesc: metaDesc || null,
+        status,
+        readTimeMin,
+      },
+    });
 
-  const post = await prisma.post.create({
-    data: {
-      authorId: user.id,
-      title,
-      slug,
-      excerpt: resolvedExcerpt,
-      content,
-      metaTitle: metaTitle || null,
-      metaDesc: metaDesc || null,
-      status,
-      readTimeMin,
-    },
-  });
-
-  await prisma.postRevision.create({
-    data: {
-      postId: post.id,
-      revision: 1,
-      title,
-      excerpt: resolvedExcerpt,
-      content,
-      metaTitle: metaTitle || null,
-      metaDesc: metaDesc || null,
-    },
-  });
-
-  for (const [index, file] of files.entries()) {
-    if (!(file instanceof File)) continue;
-    const arrayBuffer = await file.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
-    await prisma.media.create({
+    await prisma.postRevision.create({
       data: {
         postId: post.id,
-        type: file.type.startsWith("video") ? "VIDEO" : "PHOTO",
-        data: buffer,
-        fileName: file.name,
-        mimeType: file.type,
-        altText: altTexts[index] || file.name,
-        sortOrder: index,
+        revision: 1,
+        title,
+        excerpt: resolvedExcerpt,
+        content,
+        metaTitle: metaTitle || null,
+        metaDesc: metaDesc || null,
       },
     });
   }
 
-  for (const name of tagNames) {
-    const tag = await prisma.tag.upsert({
-      where: { name },
-      update: {},
-      create: { name },
-    });
-    await prisma.postTag.create({ data: { postId: post.id, tagId: tag.id } });
+  void altTextRaw;
+
+  if (post) {
+    await prisma.postTag.deleteMany({ where: { postId: post.id } });
+    await prisma.postCategory.deleteMany({ where: { postId: post.id } });
+
+    for (const name of tagNames) {
+      const tag = await prisma.tag.upsert({
+        where: { name },
+        update: {},
+        create: { name },
+      });
+      await prisma.postTag.create({ data: { postId: post.id, tagId: tag.id } });
+    }
+
+    for (const name of categoryNames) {
+      const category = await prisma.category.upsert({
+        where: { name },
+        update: {},
+        create: { name },
+      });
+      await prisma.postCategory.create({
+        data: { postId: post.id, categoryId: category.id },
+      });
+    }
+
+    const mediaPreviewRaw = String(formData.get("mediaPreview") || "");
+    const mediaOrders = getMediaSortOrders(content, mediaPreviewRaw);
+    if (mediaOrders.length) {
+      const mediaIds = mediaOrders.map((order) => order.id);
+      const existingMedia = await prisma.media.findMany({
+        where: { id: { in: mediaIds }, postId: post.id },
+        select: { id: true },
+      });
+      const allowedIds = new Set(existingMedia.map((item) => item.id));
+      const updates = mediaOrders.filter((order) => allowedIds.has(order.id));
+      if (updates.length) {
+        await prisma.$transaction(
+          updates.map((order) =>
+            prisma.media.update({
+              where: { id: order.id },
+              data: { sortOrder: order.sortOrder },
+            })
+          )
+        );
+      }
+    }
   }
 
-  for (const name of categoryNames) {
-    const category = await prisma.category.upsert({
-      where: { name },
-      update: {},
-      create: { name },
-    });
-    await prisma.postCategory.create({
-      data: { postId: post.id, categoryId: category.id },
-    });
-  }
-
-  if (status === "APPROVED") {
+  if (status === "APPROVED" && post) {
     redirect(`/essay/${post.slug}`);
   }
 
@@ -221,6 +271,7 @@ export default async function EditorPage({
           </div>
           <form id="editor-form" action={createPost} className="mt-8 grid gap-6">
             <EditorAutosave draftKey={`new-${user.id}`} fallbackDraftKeys={[`advanced-${user.id}`]} />
+            <input type="hidden" name="postId" data-autosave="postId" />
             <div className="editor-layout">
               <div className="editor-main">
                 <input

@@ -32,6 +32,7 @@ type MediaItem = {
   mimeType: string;
   altText: string;
   sortOrder: number;
+  fileName: string;
 };
 
 type ContentBlock = {
@@ -54,6 +55,42 @@ function formatDate(date: Date) {
     day: "numeric",
     year: "numeric",
   });
+}
+
+const VIDEO_EXTENSIONS = new Set(["mp4", "m4v", "mov", "webm", "ogv", "ogg"]);
+const DEFAULT_COVER_HEIGHT = 420;
+
+function getFileExtension(fileName: string) {
+  const parts = fileName.toLowerCase().split(".");
+  return parts.length > 1 ? parts[parts.length - 1] : "";
+}
+
+function isVideoMedia(item: MediaItem) {
+  if (item.type === "VIDEO") return true;
+  if (item.mimeType?.startsWith("video")) return true;
+  return VIDEO_EXTENSIONS.has(getFileExtension(item.fileName));
+}
+
+function resolvedMimeType(item: MediaItem) {
+  if (item.mimeType && item.mimeType !== "application/octet-stream") {
+    return item.mimeType;
+  }
+  const ext = getFileExtension(item.fileName);
+  switch (ext) {
+    case "mp4":
+      return "video/mp4";
+    case "m4v":
+      return "video/x-m4v";
+    case "mov":
+      return "video/quicktime";
+    case "webm":
+      return "video/webm";
+    case "ogv":
+    case "ogg":
+      return "video/ogg";
+    default:
+      return item.mimeType;
+  }
 }
 
 function getCategoryLabel(categories: { category: { name: string } }[]) {
@@ -175,13 +212,13 @@ function renderBlocks(
         const blockHeight = typeof block.height === "number" ? block.height : undefined;
         return (
           <figure key={key} className="grid gap-3">
-            {current.type === "VIDEO" ? (
+            {isVideoMedia(current) ? (
               <video
                 controls
                 className="w-full rounded-[10px] object-cover"
                 style={blockHeight ? { height: blockHeight } : undefined}
               >
-                <source src={`/api/media/${current.id}`} type={current.mimeType} />
+                <source src={`/api/media/${current.id}`} type={resolvedMimeType(current)} />
               </video>
             ) : (
               <LightboxImage
@@ -228,9 +265,9 @@ function renderBlocks(
             const fallbackAlt = galleryItems[galleryIndex]?.altText || item.altText;
             return (
               <figure key={`${key}-gallery-${galleryIndex}`} className="story-gallery-item">
-                {item.type === "VIDEO" ? (
+                {isVideoMedia(item) ? (
                   <video controls className="w-full rounded-[10px]">
-                    <source src={`/api/media/${item.id}`} type={item.mimeType} />
+                    <source src={`/api/media/${item.id}`} type={resolvedMimeType(item)} />
                   </video>
                 ) : (
                     <LightboxImage
@@ -262,12 +299,12 @@ function renderBlocks(
       return (
         <section
           key={key}
-          className="relative overflow-hidden rounded-[10px] min-h-[320px] flex items-end"
-          style={blockHeight ? { height: blockHeight } : undefined}
+          className="story-cover-block relative overflow-hidden rounded-[10px] min-h-[320px] flex items-end"
+          style={blockHeight ? { minHeight: blockHeight } : undefined}
         >
-          {current.type === "VIDEO" ? (
+          {isVideoMedia(current) ? (
             <video autoPlay muted loop playsInline className="absolute inset-0 h-full w-full object-cover">
-              <source src={`/api/media/${current.id}`} type={current.mimeType} />
+              <source src={`/api/media/${current.id}`} type={resolvedMimeType(current)} />
             </video>
           ) : (
             <LightboxImage
@@ -280,7 +317,7 @@ function renderBlocks(
               className="h-full w-full object-cover"
             />
           )}
-          <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-transparent" />
+          <div className="story-cover-overlay pointer-events-none absolute inset-0" />
           <div className="relative z-10 p-8 text-white">
             {block.overlayTitle ? (
               <h3 className="text-2xl font-semibold">{renderInlineText(block.overlayTitle)}</h3>
@@ -339,13 +376,34 @@ export default async function EssayPage({ params }: { params: Promise<{ slug: st
   }
 
   const sortedMedia = [...post.media].sort((a, b) => a.sortOrder - b.sortOrder);
-  const heroMedia = sortedMedia[0];
   const blocks = parseBlocks(post.content);
-  const heroBlock = blocks?.[0];
-  const heroHeight = typeof heroBlock?.height === "number" ? heroBlock.height : 477;
-  const shouldSkipFirstBlock = blocks?.[0]?.type === "media" || blocks?.[0]?.type === "background";
-  const contentBlocks = blocks ? (shouldSkipFirstBlock ? blocks.slice(1) : blocks) : null;
-  const startMediaIndex = heroMedia ? 1 : 0;
+  const coverBlockIndex = blocks ? blocks.findIndex((block) => block.type === "background") : -1;
+  const coverBlock = coverBlockIndex >= 0 && blocks ? blocks[coverBlockIndex] : undefined;
+  let coverMediaIndex = 0;
+  if (blocks && coverBlockIndex > 0) {
+    for (let i = 0; i < coverBlockIndex; i += 1) {
+      const block = blocks[i];
+      if (!block) continue;
+      if (block.type === "media" || block.type === "background") {
+        coverMediaIndex += 1;
+      } else if (block.type === "gallery") {
+        coverMediaIndex += block.galleryItems?.length ?? 0;
+      }
+    }
+  }
+  const heroMedia = coverBlock ? sortedMedia[coverMediaIndex] : sortedMedia[0];
+  const heroHeight = typeof coverBlock?.height === "number" ? coverBlock.height : DEFAULT_COVER_HEIGHT;
+  const shouldSkipFirstBlock = blocks?.[0]?.type === "media";
+  const contentBlocks = blocks
+    ? coverBlock
+      ? blocks.filter((_, index) => index !== coverBlockIndex)
+      : shouldSkipFirstBlock
+        ? blocks.slice(1)
+        : blocks
+    : null;
+  const contentMedia = heroMedia && coverBlock
+    ? sortedMedia.filter((item) => item.id !== heroMedia.id)
+    : sortedMedia;
   const authorImage = post.author.image;
   const authorInitials = post.author.name
     .split(" ")
@@ -357,7 +415,7 @@ export default async function EssayPage({ params }: { params: Promise<{ slug: st
   const isAdminAuthor = user?.role === "ADMIN" && user.id === post.authorId;
 
   const lightboxItems = sortedMedia
-    .filter((item) => item.type === "PHOTO")
+    .filter((item) => !isVideoMedia(item))
     .map((item) => ({
       id: item.id,
       src: `/api/media/${item.id}`,
@@ -390,124 +448,146 @@ export default async function EssayPage({ params }: { params: Promise<{ slug: st
         </Link>
 
         <article className="mt-8">
-          <p className="text-[14px] uppercase tracking-[0.55px] text-[#f54900]">
-            {getCategoryLabel(post.categories)}
-          </p>
-          <h1
-            className="mt-4 text-[36px] leading-[44px] font-semibold md:text-[56px] md:leading-[67px]"
-            style={{ color: "var(--text-primary)" }}
-          >
-            {post.title}
-          </h1>
-          <p
-            className="mt-4 text-[18px] leading-[29.25px] tracking-[-0.45px] md:text-[20px] md:leading-[32.5px]"
-            style={{ color: "var(--text-secondary)" }}
-          >
-            {post.excerpt ??
-              "An unforgettable journey through one of the world's most dramatic landscapes, where towering peaks meet endless glaciers and the wind carries stories of ancient explorers."}
-          </p>
-
           <div
-            className="mt-8 flex flex-wrap items-center justify-between gap-6 border-b pb-6"
-            style={{ borderColor: "var(--border-gray)" }}
+            className={`story-hero ${coverBlock ? "story-hero-covered" : ""}`}
+            style={
+              coverBlock && heroMedia && !isVideoMedia(heroMedia)
+                ? {
+                    backgroundImage: `url(/api/media/${heroMedia.id})`,
+                    minHeight: heroHeight,
+                  }
+                : coverBlock
+                  ? { minHeight: heroHeight }
+                  : undefined
+            }
           >
-            <div className="flex items-center gap-4">
-              {authorImage ? (
-                <img
-                  src={authorImage}
-                  alt={post.author.name}
-                  className="h-12 w-12 rounded-full object-cover"
-                />
-              ) : (
+            {coverBlock && heroMedia && isVideoMedia(heroMedia) ? (
+              <video autoPlay muted loop playsInline className="story-hero-media">
+                <source src={`/api/media/${heroMedia.id}`} type={resolvedMimeType(heroMedia)} />
+              </video>
+            ) : null}
+            {coverBlock ? <div className="story-hero-overlay" /> : null}
+            <div className="story-hero-content">
+              <p className="story-hero-category text-[14px] uppercase tracking-[0.55px] text-[#f54900]">
+                {getCategoryLabel(post.categories)}
+              </p>
+              <h1
+                className="mt-4 text-[36px] leading-[44px] font-semibold md:text-[56px] md:leading-[67px]"
+                style={{ color: "var(--text-primary)" }}
+              >
+                {post.title}
+              </h1>
+              <p
+                className="mt-4 text-[18px] leading-[29.25px] tracking-[-0.45px] md:text-[20px] md:leading-[32.5px]"
+                style={{ color: "var(--text-secondary)" }}
+              >
+                {post.excerpt ??
+                  "An unforgettable journey through one of the world's most dramatic landscapes, where towering peaks meet endless glaciers and the wind carries stories of ancient explorers."}
+              </p>
+
+              <div
+                className="mt-8 flex flex-wrap items-center justify-between gap-6 border-b pb-6"
+                style={{ borderColor: "var(--border-gray)" }}
+              >
+                <div className="flex items-center gap-4">
+                  {authorImage ? (
+                    <img
+                      src={authorImage}
+                      alt={post.author.name}
+                      className="h-12 w-12 rounded-full object-cover"
+                    />
+                  ) : (
+                    <div
+                      className="flex h-12 w-12 items-center justify-center rounded-full text-[14px] font-semibold"
+                      style={{ background: "var(--bg-gray-100)", color: "var(--text-tertiary)" }}
+                    >
+                      {authorInitials}
+                    </div>
+                  )}
+                  <div>
+                    <p className="text-[16px] tracking-[-0.31px]" style={{ color: "var(--text-primary)" }}>
+                      {post.author.name}
+                    </p>
                 <div
-                  className="flex h-12 w-12 items-center justify-center rounded-full text-[14px] font-semibold"
-                  style={{ background: "var(--bg-gray-100)", color: "var(--text-tertiary)" }}
-                >
-                  {authorInitials}
-                </div>
-              )}
-              <div>
-                <p className="text-[16px] tracking-[-0.31px]" style={{ color: "var(--text-primary)" }}>
-                  {post.author.name}
-                </p>
-                <div
-                  className="mt-1 flex flex-wrap items-center gap-3 text-[14px]"
+                  className="story-hero-meta mt-1 flex flex-wrap items-center gap-3 text-[14px]"
                   style={{ color: "var(--text-muted)" }}
                 >
-                  <span className="inline-flex items-center gap-2">
-                    <svg
-                      aria-hidden
-                      viewBox="0 0 24 24"
-                      className="h-4 w-4"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="1.8"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <rect x="3" y="4" width="18" height="18" rx="2" />
-                      <path d="M16 2v4" />
-                      <path d="M8 2v4" />
-                      <path d="M3 10h18" />
-                    </svg>
-                    {formatDate(post.createdAt)}
-                  </span>
-                  <span aria-hidden>&middot;</span>
-                  <span className="inline-flex items-center gap-2">
-                    <svg
-                      aria-hidden
-                      viewBox="0 0 24 24"
-                      className="h-4 w-4"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="1.8"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <circle cx="12" cy="12" r="9" />
-                      <path d="M12 7v5l3 3" />
-                    </svg>
-                    {post.readTimeMin} min read
-                  </span>
+                      <span className="inline-flex items-center gap-2">
+                        <svg
+                          aria-hidden
+                          viewBox="0 0 24 24"
+                          className="h-4 w-4"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="1.8"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          <rect x="3" y="4" width="18" height="18" rx="2" />
+                          <path d="M16 2v4" />
+                          <path d="M8 2v4" />
+                          <path d="M3 10h18" />
+                        </svg>
+                        {formatDate(post.createdAt)}
+                      </span>
+                      <span aria-hidden>&middot;</span>
+                      <span className="inline-flex items-center gap-2">
+                        <svg
+                          aria-hidden
+                          viewBox="0 0 24 24"
+                          className="h-4 w-4"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="1.8"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          <circle cx="12" cy="12" r="9" />
+                          <path d="M12 7v5l3 3" />
+                        </svg>
+                        {post.readTimeMin} min read
+                      </span>
+                    </div>
+                  </div>
+                </div>
+                <div className="flex flex-wrap items-center justify-end gap-3">
+                  <EssayActionIcons
+                    postId={post.id}
+                    slug={post.slug}
+                    canLike={!!user}
+                    title={post.title}
+                    excerpt={post.excerpt ?? ""}
+                imageUrl={heroMedia && !isVideoMedia(heroMedia) ? `/api/media/${heroMedia.id}` : undefined}
+                currentUser={user ? { id: user.id, name: user.name, image: user.image, role: user.role } : undefined}
+              />
+                  {canEditPost ? (
+                    <div className="flex flex-col items-end">
+                      {user?.role === "ADMIN" && !isAdminAuthor ? (
+                        <AdminReviewModal postId={post.id} postTitle={post.title} action={reviewPost} />
+                      ) : (
+                        <>
+                          <Link className="edit-story-link" href={`/editor/edit/${post.id}`}>
+                            Edit story
+                          </Link>
+                          {isAdminAuthor ? (
+                            <span className="edit-story-note">Changes publish immediately.</span>
+                          ) : (
+                            <span className="edit-story-note">Edits resubmit for approval.</span>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  ) : null}
                 </div>
               </div>
             </div>
-            <div className="flex flex-wrap items-center justify-end gap-3">
-              <EssayActionIcons
-                postId={post.id}
-                slug={post.slug}
-                canLike={!!user}
-                title={post.title}
-                excerpt={post.excerpt ?? ""}
-                imageUrl={heroMedia?.type === "PHOTO" ? `/api/media/${heroMedia.id}` : undefined}
-                currentUser={user ? { id: user.id, name: user.name, image: user.image, role: user.role } : undefined}
-              />
-              {canEditPost ? (
-                <div className="flex flex-col items-end">
-                  {user?.role === "ADMIN" && !isAdminAuthor ? (
-                    <AdminReviewModal postId={post.id} postTitle={post.title} action={reviewPost} />
-                  ) : (
-                    <>
-                      <Link className="edit-story-link" href={`/editor/edit/${post.id}`}>
-                        Edit story
-                      </Link>
-                      {isAdminAuthor ? (
-                        <span className="edit-story-note">Changes publish immediately.</span>
-                      ) : (
-                        <span className="edit-story-note">Edits resubmit for approval.</span>
-                      )}
-                    </>
-                  )}
-                </div>
-              ) : null}
-            </div>
           </div>
 
-          {heroMedia ? (
+          {heroMedia && !coverBlock ? (
             <div className="mt-8 overflow-hidden rounded-[10px]" style={{ height: heroHeight }}>
-              {heroMedia.type === "VIDEO" ? (
+              {isVideoMedia(heroMedia) ? (
                 <video controls className="h-full w-full object-cover">
-                  <source src={`/api/media/${heroMedia.id}`} type={heroMedia.mimeType} />
+                  <source src={`/api/media/${heroMedia.id}`} type={resolvedMimeType(heroMedia)} />
                 </video>
               ) : (
                 <LightboxImage
@@ -525,7 +605,7 @@ export default async function EssayPage({ params }: { params: Promise<{ slug: st
 
           <div className="mt-10 grid gap-6">
             {contentBlocks
-              ? renderBlocks(contentBlocks, sortedMedia, startMediaIndex, lightboxItems)
+              ? renderBlocks(contentBlocks, contentMedia, 0, lightboxItems)
               : renderPlainText(post.content)}
           </div>
 

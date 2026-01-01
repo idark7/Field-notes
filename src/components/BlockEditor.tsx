@@ -32,6 +32,13 @@ type BlockEditorProps = {
   mediaAltName?: string;
   initialContent?: string | null;
   variant?: "default" | "advanced";
+  initialMedia?: {
+    id: string;
+    mimeType: string;
+    altText: string;
+    fileName: string;
+    sortOrder: number;
+  }[];
 };
 
 type FormatTargetField = "text" | "overlayTitle" | "overlayText" | "items";
@@ -55,6 +62,27 @@ type FormatSelection = {
   selectionStart: number;
   selectionEnd: number;
 };
+
+type MediaPreview = {
+  id?: string;
+  url: string;
+  isVideo: boolean;
+  progress: number;
+  fileName?: string;
+  persistedId?: string;
+  uploading?: boolean;
+};
+
+type PreviewMediaMap = Record<
+  string,
+  { url: string; isVideo: boolean; fileName?: string; persistedId?: string }[]
+>;
+
+function revokeIfBlob(url: string) {
+  if (url.startsWith("blob:")) {
+    URL.revokeObjectURL(url);
+  }
+}
 
 function normalizeHeadingLevel(level?: Block["level"]): NonNullable<Block["level"]> {
   if (level === "h1" || level === "h3") return level;
@@ -120,6 +148,60 @@ function parseInitialBlocks(content: string | null | undefined, defaultType: Blo
   ];
 }
 
+function buildInitialMediaState(blocks: Block[], mediaItems?: BlockEditorProps["initialMedia"]) {
+  if (!mediaItems?.length) {
+    return {
+      previews: {} as Record<string, MediaPreview>,
+      galleryPreviews: {} as Record<string, MediaPreview[]>,
+      mediaNames: {} as Record<string, string>,
+    };
+  }
+
+  const sorted = [...mediaItems].sort((a, b) => a.sortOrder - b.sortOrder);
+  let mediaIndex = 0;
+  const previews: Record<string, MediaPreview> = {};
+  const galleryPreviews: Record<string, MediaPreview[]> = {};
+  const mediaNames: Record<string, string> = {};
+
+  blocks.forEach((block) => {
+    if ((block.type === "media" || block.type === "background") && sorted[mediaIndex]) {
+      const item = sorted[mediaIndex];
+      previews[block.id] = {
+        url: `/api/media/${item.id}`,
+        isVideo: isVideoMime(item.mimeType, item.fileName),
+        progress: 100,
+        fileName: item.fileName,
+        persistedId: item.id,
+      };
+      mediaNames[block.id] = item.fileName;
+      mediaIndex += 1;
+    }
+
+    if (block.type === "gallery") {
+      const count = block.galleryItems?.length ?? 0;
+      const galleryItems: MediaPreview[] = [];
+      for (let i = 0; i < count; i += 1) {
+        const item = sorted[mediaIndex + i];
+        if (!item) break;
+        galleryItems.push({
+          id: `${block.id}-persisted-${item.id}`,
+          url: `/api/media/${item.id}`,
+          isVideo: isVideoMime(item.mimeType, item.fileName),
+          progress: 100,
+          fileName: item.fileName,
+          persistedId: item.id,
+        });
+      }
+      if (galleryItems.length) {
+        galleryPreviews[block.id] = galleryItems;
+        mediaIndex += galleryItems.length;
+      }
+    }
+  });
+
+  return { previews, galleryPreviews, mediaNames };
+}
+
 const HEADING_LEVELS: Block["level"][] = ["h1", "h2", "h3"];
 const HEADING_TEXT_CLASSES: Record<NonNullable<Block["level"]>, string> = {
   h1: "text-[28px] leading-[1.2] font-semibold",
@@ -159,18 +241,63 @@ const COMMAND_OPTIONS = [
 const DEFAULT_MEDIA_HEIGHT = 420;
 const MIN_MEDIA_HEIGHT = 220;
 const MAX_MEDIA_HEIGHT = 820;
-const MAX_MEDIA_FILES = 5;
+const MAX_GALLERY_ITEMS = 5;
+const VIDEO_EXTENSIONS = new Set(["mp4", "m4v", "mov", "webm", "ogv", "ogg"]);
+const IMAGE_EXTENSIONS = new Set(["jpg", "jpeg", "png", "gif", "webp", "avif", "bmp", "tif", "tiff"]);
+
+function getFileExtension(fileName: string) {
+  const parts = fileName.toLowerCase().split(".");
+  return parts.length > 1 ? parts[parts.length - 1] : "";
+}
+
+function isVideoName(fileName?: string) {
+  if (!fileName) return false;
+  return VIDEO_EXTENSIONS.has(getFileExtension(fileName));
+}
+
+function isImageName(fileName?: string) {
+  if (!fileName) return false;
+  return IMAGE_EXTENSIONS.has(getFileExtension(fileName));
+}
+
+function isVideoMime(mimeType?: string, fileName?: string) {
+  if (mimeType) return mimeType.startsWith("video");
+  return isVideoName(fileName);
+}
+
+function isVideoFile(file: File) {
+  if (file.type) return file.type.startsWith("video");
+  return isVideoName(file.name);
+}
+
+function isSupportedMedia(file: File) {
+  if (file.type) {
+    return file.type.startsWith("image") || file.type.startsWith("video");
+  }
+  return isImageName(file.name) || isVideoName(file.name);
+}
 
 export function BlockEditor({
   name = "content",
   mediaAltName = "altText",
   initialContent,
   variant = "default",
+  initialMedia,
 }: BlockEditorProps) {
   const isAdvanced = variant === "advanced";
   const editorRef = useRef<HTMLDivElement>(null);
+  const initialBlocks = useMemo(() => parseInitialBlocks(initialContent, "paragraph"), [initialContent]);
+  const hydratedMedia = useMemo(
+    () => buildInitialMediaState(initialBlocks, initialMedia),
+    [initialBlocks, initialMedia]
+  );
   const [blocks, setBlocks] = useState<Block[]>(() =>
-    parseInitialBlocks(initialContent, "paragraph")
+    initialBlocks.map((block) => {
+      if ((block.type === "media" || block.type === "background") && hydratedMedia.mediaNames[block.id]) {
+        return { ...block, mediaFileName: block.mediaFileName || hydratedMedia.mediaNames[block.id] };
+      }
+      return block;
+    })
   );
   const [activeBlockId, setActiveBlockId] = useState<string | null>(null);
   const [dragId, setDragId] = useState<string | null>(null);
@@ -180,11 +307,13 @@ export function BlockEditor({
   const [dropOverId, setDropOverId] = useState<string | null>(null);
   const [galleryModal, setGalleryModal] = useState<{ blockId: string; index: number } | null>(null);
   const [galleryDraft, setGalleryDraft] = useState({ altText: "", caption: "", keywords: "" });
-  const [previews, setPreviews] = useState<Record<string, { url: string; isVideo: boolean; progress: number }>>({});
-  const [galleryPreviews, setGalleryPreviews] = useState<
-    Record<string, { id: string; url: string; isVideo: boolean; progress: number }[]>
-  >({});
-  const [galleryFiles, setGalleryFiles] = useState<Record<string, File[]>>({});
+  const [previews, setPreviews] = useState<Record<string, MediaPreview>>(() => hydratedMedia.previews);
+  const [galleryPreviews, setGalleryPreviews] = useState<Record<string, MediaPreview[]>>(
+    () => hydratedMedia.galleryPreviews
+  );
+  const [galleryFiles, setGalleryFiles] = useState<Record<string, Record<string, File>>>({});
+  const [mediaFiles, setMediaFiles] = useState<Record<string, File>>({});
+  const [draggingGallery, setDraggingGallery] = useState<{ blockId: string; index: number } | null>(null);
   const [formatMenu, setFormatMenu] = useState<FormatMenuState | null>(null);
   const [pendingSelection, setPendingSelection] = useState<FormatSelection | null>(null);
   const resizeState = useRef<{
@@ -216,18 +345,48 @@ export function BlockEditor({
     });
     return entries.join("\n");
   }, [blocks]);
-  const selectedMediaCount = useMemo(() => {
-    const mediaCount = Object.values(previews).filter((preview) => preview?.url).length;
-    const galleryCount = Object.values(galleryPreviews).reduce((total, items) => total + items.length, 0);
-    return mediaCount + galleryCount;
+  const previewMediaMap = useMemo<PreviewMediaMap>(() => {
+    const map: PreviewMediaMap = {};
+    blocks.forEach((block) => {
+      if (!block.id) return;
+      if (block.type === "media" || block.type === "background") {
+        const preview = previews[block.id];
+        if (preview?.url) {
+          map[block.id] = [
+            {
+              url: preview.url,
+              isVideo: preview.isVideo,
+              fileName: preview.fileName ?? block.mediaFileName,
+              persistedId: preview.persistedId,
+            },
+          ];
+        }
+      }
+      if (block.type === "gallery") {
+        const items = galleryPreviews[block.id] ?? [];
+        if (items.length) {
+          map[block.id] = items.map((item) => ({
+            url: item.url,
+            isVideo: item.isVideo,
+            fileName: item.fileName,
+            persistedId: item.persistedId,
+          }));
+        }
+      }
+    });
+    return map;
+  }, [blocks, previews, galleryPreviews]);
+  const hasActiveUploads = useMemo(() => {
+    const pendingMedia = Object.values(previews).some((preview) => preview?.uploading);
+    const pendingGallery = Object.values(galleryPreviews).some((items) => items.some((item) => item.uploading));
+    return pendingMedia || pendingGallery;
   }, [previews, galleryPreviews]);
-  const remainingMediaSlots = MAX_MEDIA_FILES - selectedMediaCount;
 
   useEffect(() => {
-    if (mediaLimitError && selectedMediaCount < MAX_MEDIA_FILES) {
-      setMediaLimitError("");
-    }
-  }, [mediaLimitError, selectedMediaCount]);
+    if (!mediaLimitError) return;
+    const timer = window.setTimeout(() => setMediaLimitError(""), 4000);
+    return () => window.clearTimeout(timer);
+  }, [mediaLimitError]);
 
   useEffect(() => {
     if (!galleryModal) return;
@@ -433,6 +592,7 @@ export function BlockEditor({
         galleryItems: type === "gallery" ? [] : undefined,
         overlayTitle: type === "background" ? "" : undefined,
         overlayText: type === "background" ? "" : undefined,
+        height: type === "media" || type === "background" ? DEFAULT_MEDIA_HEIGHT : undefined,
       },
     ]);
   }
@@ -455,6 +615,7 @@ export function BlockEditor({
         galleryItems: type === "gallery" ? [] : undefined,
         overlayTitle: type === "background" ? "" : undefined,
         overlayText: type === "background" ? "" : undefined,
+        height: type === "media" || type === "background" ? DEFAULT_MEDIA_HEIGHT : undefined,
       });
       return next;
     });
@@ -509,26 +670,6 @@ export function BlockEditor({
     setShowAdvancedMenu(false);
   }
 
-  function trackFileProgress(file: File, onProgress: (value: number) => void) {
-    const reader = new FileReader();
-    reader.onprogress = (event) => {
-      if (!event.lengthComputable) return;
-      const percent = Math.min(100, Math.round((event.loaded / event.total) * 100));
-      onProgress(percent);
-    };
-    reader.onload = () => onProgress(100);
-    reader.onerror = () => onProgress(100);
-    reader.readAsArrayBuffer(file);
-  }
-
-  function syncGalleryInput(blockId: string, files: File[]) {
-    const input = galleryInputRefs.current[blockId];
-    if (!input) return;
-    const data = new DataTransfer();
-    files.forEach((file) => data.items.add(file));
-    input.files = data.files;
-  }
-
   function clearMediaInput(blockId: string) {
     const input = mediaInputRefs.current[blockId];
     if (input) {
@@ -537,17 +678,24 @@ export function BlockEditor({
   }
 
   function handleGalleryFiles(blockId: string, fileList: FileList | File[]) {
-    const files = Array.from(fileList).filter(
-      (file) => file.type.startsWith("image") || file.type.startsWith("video")
-    );
+    const incoming = Array.from(fileList);
+    if (incoming.some((file) => isVideoFile(file))) {
+      setMediaLimitError("Gallery blocks support images only.");
+    }
+    const files = incoming.filter((file) => isSupportedMedia(file) && !isVideoFile(file));
     if (!files.length) return;
-    if (remainingMediaSlots <= 0) {
-      setMediaLimitError(`You can upload up to ${MAX_MEDIA_FILES} photos per story.`);
+    const existingCount = blocks.find((block) => block.id === blockId)?.galleryItems?.length ?? 0;
+    const remainingSlots = Math.max(0, MAX_GALLERY_ITEMS - existingCount);
+    if (remainingSlots <= 0) {
+      setMediaLimitError(`Gallery blocks can include up to ${MAX_GALLERY_ITEMS} images.`);
       return;
     }
-    const allowedFiles = files.slice(0, remainingMediaSlots);
+    const allowedFiles = files.slice(0, remainingSlots);
     if (allowedFiles.length < files.length) {
-      setMediaLimitError(`You can upload up to ${MAX_MEDIA_FILES} photos per story.`);
+      setMediaLimitError(`Gallery blocks can include up to ${MAX_GALLERY_ITEMS} images.`);
+    }
+    if (allowedFiles.length) {
+      setMediaLimitError("");
     }
 
     const nextItems = allowedFiles.map((file) => ({
@@ -567,10 +715,15 @@ export function BlockEditor({
     );
 
     setGalleryFiles((current) => {
-      const existing = current[blockId] ?? [];
-      const nextFiles = [...existing, ...allowedFiles];
-      syncGalleryInput(blockId, nextFiles);
-      return { ...current, [blockId]: nextFiles };
+      const existing = current[blockId] ?? {};
+      const next = { ...existing };
+      allowedFiles.forEach((file, index) => {
+        const previewId = nextItems[index]?.id;
+        if (previewId) {
+          next[previewId] = file;
+        }
+      });
+      return { ...current, [blockId]: next };
     });
 
     setGalleryPreviews((current) => {
@@ -578,27 +731,14 @@ export function BlockEditor({
       const nextPreviews = allowedFiles.map((file, index) => ({
         id: nextItems[index]?.id ?? `${blockId}-${index}`,
         url: URL.createObjectURL(file),
-        isVideo: file.type.startsWith("video"),
-        progress: 0,
+        isVideo: isVideoFile(file),
+        progress: 100,
+        fileName: file.name,
+        uploading: false,
       }));
       return { ...current, [blockId]: [...existing, ...nextPreviews] };
     });
 
-    allowedFiles.forEach((file, index) => {
-      const previewId = nextItems[index]?.id;
-      if (!previewId) return;
-      trackFileProgress(file, (value) => {
-        setGalleryPreviews((current) => {
-          const items = current[blockId] ?? [];
-          return {
-            ...current,
-            [blockId]: items.map((item) =>
-              item.id === previewId ? { ...item, progress: value } : item
-            ),
-          };
-        });
-      });
-    });
   }
 
   function removeMediaSelection(blockId: string) {
@@ -606,8 +746,13 @@ export function BlockEditor({
       const next = { ...current };
       const preview = next[blockId];
       if (preview?.url) {
-        URL.revokeObjectURL(preview.url);
+        revokeIfBlob(preview.url);
       }
+      delete next[blockId];
+      return next;
+    });
+    setMediaFiles((current) => {
+      const next = { ...current };
       delete next[blockId];
       return next;
     });
@@ -621,17 +766,19 @@ export function BlockEditor({
       const items = next[blockId] ?? [];
       const target = items[index];
       if (target?.url) {
-        URL.revokeObjectURL(target.url);
+        revokeIfBlob(target.url);
       }
       next[blockId] = items.filter((_, itemIndex) => itemIndex !== index);
       return next;
     });
 
     setGalleryFiles((current) => {
-      const existing = current[blockId] ?? [];
-      const nextFiles = existing.filter((_, fileIndex) => fileIndex !== index);
-      syncGalleryInput(blockId, nextFiles);
-      return { ...current, [blockId]: nextFiles };
+      const existing = current[blockId] ?? {};
+      const targetId = galleryPreviews[blockId]?.[index]?.id;
+      if (!targetId) return current;
+      const next = { ...existing };
+      delete next[targetId];
+      return { ...current, [blockId]: next };
     });
 
     setBlocks((current) =>
@@ -709,12 +856,328 @@ export function BlockEditor({
   function handleContentRestore(event: React.FormEvent<HTMLInputElement>) {
     const nextValue = event.currentTarget.value;
     if (!nextValue || nextValue === serialized) return;
-    setBlocks(parseInitialBlocks(nextValue, "paragraph"));
-    setPreviews({});
-    setGalleryPreviews({});
+    const nextBlocks = parseInitialBlocks(nextValue, "paragraph");
+    const hydrated = buildInitialMediaState(nextBlocks, initialMedia);
+    setBlocks(
+      nextBlocks.map((block) => {
+        if ((block.type === "media" || block.type === "background") && hydrated.mediaNames[block.id]) {
+          return { ...block, mediaFileName: block.mediaFileName || hydrated.mediaNames[block.id] };
+        }
+        return block;
+      })
+    );
+    setPreviews(hydrated.previews);
+    setGalleryPreviews(hydrated.galleryPreviews);
     setGalleryFiles({});
+    setMediaFiles({});
     setMediaLimitError("");
     setActiveBlockId(null);
+  }
+
+  function getGlobalMediaIndex(targetBlockId: string, galleryIndex = 0) {
+    let order = 0;
+    for (const block of blocks) {
+      if (block.id === targetBlockId) {
+        return block.type === "gallery" ? order + galleryIndex : order;
+      }
+      if (block.type === "media" || block.type === "background") {
+        order += 1;
+      } else if (block.type === "gallery") {
+        order += block.galleryItems?.length ?? 0;
+      }
+    }
+    return order;
+  }
+
+  function setMediaSelection(blockId: string, file: File) {
+    updateBlock(blockId, { mediaFileName: file.name });
+    const nextUrl = URL.createObjectURL(file);
+    setMediaFiles((current) => ({ ...current, [blockId]: file }));
+    setPreviews((current) => {
+      const existing = current[blockId];
+      if (existing?.url) {
+        revokeIfBlob(existing.url);
+      }
+      return {
+        ...current,
+        [blockId]: {
+          url: nextUrl,
+          isVideo: isVideoFile(file),
+          progress: 100,
+          fileName: file.name,
+          uploading: false,
+        },
+      };
+    });
+  }
+
+  function handleSingleMediaFile(blockId: string, file: File, allowVideo: boolean) {
+    if (!isSupportedMedia(file)) {
+      setMediaLimitError("Only image or video files are supported.");
+      clearMediaInput(blockId);
+      return;
+    }
+    if (!allowVideo && isVideoFile(file)) {
+      setMediaLimitError("Cover photos must be images.");
+      clearMediaInput(blockId);
+      return;
+    }
+    setMediaLimitError("");
+    setMediaSelection(blockId, file);
+  }
+
+  async function ensurePostId() {
+    const form = document.getElementById("editor-form") as HTMLFormElement | null;
+    const postInput = form?.querySelector<HTMLInputElement>('input[name="postId"]');
+    if (postInput?.value) {
+      return postInput.value;
+    }
+    const values: Record<string, string> = {};
+    document.querySelectorAll("[data-autosave]").forEach((node) => {
+      const element = node as HTMLInputElement | HTMLTextAreaElement;
+      const key = element.getAttribute("data-autosave");
+      if (key) {
+        values[key] = element.value;
+      }
+    });
+    const response = await fetch("/api/editor/autosave", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ...values }),
+    });
+    if (!response.ok) {
+      throw new Error("Unable to create draft.");
+    }
+    const data = (await response.json()) as { postId?: string };
+    if (data.postId && postInput) {
+      postInput.value = data.postId;
+    }
+    return data.postId ?? "";
+  }
+
+  async function uploadMediaFile(
+    blockId: string,
+    file: File,
+    galleryIndex?: number,
+    onProgress?: (progress: number) => void
+  ) {
+    const postId = await ensurePostId();
+    if (!postId) {
+      throw new Error("Missing post id");
+    }
+    const altText =
+      blocks.find((block) => block.id === blockId)?.altText ||
+      blocks
+        .find((block) => block.id === blockId)
+        ?.galleryItems?.[galleryIndex ?? 0]?.altText ||
+      file.name;
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("postId", postId);
+    formData.append("altText", altText || file.name);
+    formData.append("sortOrder", String(getGlobalMediaIndex(blockId, galleryIndex ?? 0)));
+    return await new Promise<{ id: string; fileName: string; mimeType: string; type: string }>((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open("POST", "/api/media");
+      xhr.responseType = "json";
+      xhr.upload.onprogress = (event) => {
+        if (!event.lengthComputable) return;
+        const progress = Math.min(100, Math.max(0, Math.round((event.loaded / event.total) * 100)));
+        onProgress?.(progress);
+      };
+      xhr.onload = () => {
+        if (xhr.status < 200 || xhr.status >= 300) {
+          reject(new Error("Upload failed"));
+          return;
+        }
+        let response = xhr.response as { id: string; fileName: string; mimeType: string; type: string } | null;
+        if (!response && xhr.responseText) {
+          try {
+            response = JSON.parse(xhr.responseText) as { id: string; fileName: string; mimeType: string; type: string };
+          } catch {
+            response = null;
+          }
+        }
+        if (!response?.id) {
+          reject(new Error("Upload failed"));
+          return;
+        }
+        resolve(response);
+      };
+      xhr.onerror = () => reject(new Error("Upload failed"));
+      onProgress?.(0);
+      xhr.send(formData);
+    });
+  }
+
+  async function handleUploadBlockMedia(blockId: string) {
+    const file = mediaFiles[blockId];
+    if (!file) return;
+    setPreviews((current) => ({
+      ...current,
+      [blockId]: { ...(current[blockId] ?? {}), uploading: true, progress: 0 },
+    }));
+    try {
+      const result = await uploadMediaFile(blockId, file, undefined, (progress) => {
+        setPreviews((current) => {
+          const existing = current[blockId];
+          if (!existing) return current;
+          return {
+            ...current,
+            [blockId]: { ...existing, progress },
+          };
+        });
+      });
+      setPreviews((current) => {
+        const existing = current[blockId];
+        if (existing?.url) {
+          revokeIfBlob(existing.url);
+        }
+        return {
+          ...current,
+          [blockId]: {
+            url: `/api/media/${result.id}`,
+            isVideo: result.type === "VIDEO",
+            progress: 100,
+            fileName: result.fileName,
+            persistedId: result.id,
+            uploading: false,
+          },
+        };
+      });
+      setMediaFiles((current) => {
+        const next = { ...current };
+        delete next[blockId];
+        return next;
+      });
+      clearMediaInput(blockId);
+    } catch (error) {
+      setPreviews((current) => ({
+        ...current,
+        [blockId]: { ...(current[blockId] ?? {}), uploading: false, progress: 0 },
+      }));
+      setMediaLimitError(error instanceof Error ? error.message : "Upload failed");
+    }
+  }
+
+  async function handleUploadGalleryItem(blockId: string, previewId: string, previewIndex: number) {
+    const file = galleryFiles[blockId]?.[previewId];
+    if (!file) return;
+    setGalleryPreviews((current) => {
+      const items = current[blockId] ?? [];
+      return {
+        ...current,
+        [blockId]: items.map((item) =>
+          item.id === previewId ? { ...item, uploading: true, progress: 0 } : item
+        ),
+      };
+    });
+    try {
+      const result = await uploadMediaFile(blockId, file, previewIndex, (progress) => {
+        setGalleryPreviews((current) => {
+          const items = current[blockId] ?? [];
+          return {
+            ...current,
+            [blockId]: items.map((item) =>
+              item.id === previewId ? { ...item, progress } : item
+            ),
+          };
+        });
+      });
+      setGalleryPreviews((current) => {
+        const items = current[blockId] ?? [];
+        return {
+          ...current,
+          [blockId]: items.map((item) =>
+            item.id === previewId
+              ? {
+                  ...item,
+                  url: `/api/media/${result.id}`,
+                  isVideo: result.type === "VIDEO",
+                  persistedId: result.id,
+                  uploading: false,
+                  progress: 100,
+                }
+              : item
+          ),
+        };
+      });
+      setGalleryFiles((current) => {
+        const existing = current[blockId] ?? {};
+        const next = { ...existing };
+        delete next[previewId];
+        return { ...current, [blockId]: next };
+      });
+    } catch (error) {
+      setGalleryPreviews((current) => {
+        const items = current[blockId] ?? [];
+        return {
+          ...current,
+          [blockId]: items.map((item) =>
+            item.id === previewId ? { ...item, uploading: false, progress: 0 } : item
+          ),
+        };
+      });
+      setMediaLimitError(error instanceof Error ? error.message : "Upload failed");
+    }
+  }
+
+  async function handleRemovePersistedMedia(mediaId: string) {
+    const response = await fetch(`/api/media/${mediaId}`, { method: "DELETE" });
+    if (!response.ok) {
+      throw new Error("Unable to remove media.");
+    }
+  }
+
+  function moveGalleryItem(blockId: string, fromIndex: number, toIndex: number) {
+    if (fromIndex === toIndex) return;
+    setGalleryPreviews((current) => {
+      const items = [...(current[blockId] ?? [])];
+      const [moved] = items.splice(fromIndex, 1);
+      items.splice(toIndex, 0, moved);
+      return { ...current, [blockId]: items };
+    });
+    setBlocks((current) =>
+      current.map((block) => {
+        if (block.id !== blockId) return block;
+        const items = [...(block.galleryItems ?? [])];
+        const [moved] = items.splice(fromIndex, 1);
+        items.splice(toIndex, 0, moved);
+        return { ...block, galleryItems: items };
+      })
+    );
+  }
+
+  async function confirmRemoveBlockMedia(blockId: string) {
+    const preview = previews[blockId];
+    if (!preview) return;
+    const confirmed = window.confirm("Remove this media?");
+    if (!confirmed) return;
+    if (preview.persistedId) {
+      try {
+        await handleRemovePersistedMedia(preview.persistedId);
+      } catch (error) {
+        setMediaLimitError(error instanceof Error ? error.message : "Unable to remove media.");
+        return;
+      }
+    }
+    removeMediaSelection(blockId);
+  }
+
+  async function confirmRemoveGalleryItem(blockId: string, index: number) {
+    const preview = galleryPreviews[blockId]?.[index];
+    if (!preview) return;
+    const confirmed = window.confirm("Remove this gallery item?");
+    if (!confirmed) return;
+    if (preview.persistedId) {
+      try {
+        await handleRemovePersistedMedia(preview.persistedId);
+      } catch (error) {
+        setMediaLimitError(error instanceof Error ? error.message : "Unable to remove media.");
+        return;
+      }
+    }
+    removeGalleryItem(blockId, index);
   }
 
   const activeGalleryItem = useMemo(() => {
@@ -733,11 +1196,13 @@ export function BlockEditor({
       <input
         type="hidden"
         name={name}
-        value={serialized}
-        data-autosave="content"
-        onInput={handleContentRestore}
-      />
-      <input type="hidden" name={mediaAltName} value={mediaAlt} />
+      value={serialized}
+      data-autosave="content"
+      onInput={handleContentRestore}
+    />
+    <input type="hidden" name={mediaAltName} value={mediaAlt} />
+    <input type="hidden" name="mediaPreview" value={JSON.stringify(previewMediaMap)} readOnly />
+    <input type="hidden" id="editor-upload-status" value={hasActiveUploads ? "uploading" : "idle"} readOnly />
       <div className="sr-only" aria-hidden="true">
         <input value={command} readOnly />
       </div>
@@ -1150,13 +1615,14 @@ export function BlockEditor({
               onChange={(event) => updateBlock(block.id, { text: event.target.value })}
               onInput={handleTextareaInput}
               onContextMenu={(event) => openFormatMenu(event, { blockId: block.id, field: "text" })}
+              onMouseUp={(event) => openFormatMenu(event, { blockId: block.id, field: "text" })}
               placeholder={
                 isAdvanced ? (index === 0 ? "Tell your story..." : "Continue writing...") : "Paragraph text"
               }
               data-autoresize={isAdvanced ? "true" : undefined}
               className={
                 isAdvanced
-                  ? "mt-2 w-full resize-none border-none bg-transparent px-0 py-0 text-[18px] leading-[30px] focus:outline-none"
+                  ? "mt-2 w-full resize-none border-none bg-transparent px-0 py-0 text-[18px] leading-[28px] focus:outline-none"
                   : "mt-4 w-full border rounded-lg px-4 py-3 min-h-[140px]"
               }
               style={{ 
@@ -1241,55 +1707,44 @@ export function BlockEditor({
               <p className="text-xs uppercase tracking-[0.2em]" style={{ color: 'var(--text-muted)' }}>
                 Media order #{blocks.filter((item, idx) => ["media", "gallery", "background"].includes(item.type) && idx <= index).length}
               </p>
-              <input
-                type="file"
-                name="mediaFiles"
-                accept="image/*,video/*"
-                onChange={(event) => {
-                  const file = event.target.files?.[0];
-                  const availableSlots = remainingMediaSlots + (previews[block.id] ? 1 : 0);
-                  if (file && availableSlots <= 0) {
-                    setMediaLimitError(`You can upload up to ${MAX_MEDIA_FILES} photos per story.`);
-                    clearMediaInput(block.id);
-                    return;
-                  }
-                  updateBlock(block.id, { mediaFileName: file ? file.name : "" });
+              <label
+                className={`editor-dropzone ${dropOverId === block.id ? "is-active" : ""}`}
+                onDragOver={(event) => {
+                  event.preventDefault();
+                  setDropOverId(block.id);
+                }}
+                onDragLeave={() => setDropOverId(null)}
+                onDrop={(event) => {
+                  event.preventDefault();
+                  setDropOverId(null);
+                  const file = event.dataTransfer.files?.[0];
                   if (file) {
-                    const nextUrl = URL.createObjectURL(file);
-                    setPreviews((current) => {
-                      const existing = current[block.id];
-                      if (existing?.url) {
-                        URL.revokeObjectURL(existing.url);
-                      }
-                      return {
-                        ...current,
-                        [block.id]: { url: nextUrl, isVideo: file.type.startsWith("video"), progress: 0 },
-                      };
-                    });
-                    trackFileProgress(file, (value) => {
-                      setPreviews((current) => ({
-                        ...current,
-                        [block.id]: {
-                          ...(current[block.id] ?? { url: nextUrl, isVideo: file.type.startsWith("video"), progress: value }),
-                          progress: value,
-                        },
-                      }));
-                    });
+                    handleSingleMediaFile(block.id, file, true);
                   }
                 }}
-                className="border rounded-lg px-4 py-2"
-                style={{ 
-                  borderColor: 'var(--border-gray)', 
-                  backgroundColor: 'var(--bg-gray-50)',
-                  color: 'var(--text-primary)'
-                }}
-                onFocus={() => setActiveBlockId(block.id)}
-                data-block-id={block.id}
-                data-block-type="media"
-                ref={(node) => {
-                  mediaInputRefs.current[block.id] = node;
-                }}
-              />
+              >
+                <input
+                  type="file"
+                  accept="image/*,video/*"
+                  onChange={(event) => {
+                    const file = event.target.files?.[0];
+                    if (file) {
+                      handleSingleMediaFile(block.id, file, true);
+                    }
+                  }}
+                  className="sr-only"
+                  onFocus={() => setActiveBlockId(block.id)}
+                  data-block-id={block.id}
+                  data-block-type="media"
+                  ref={(node) => {
+                    mediaInputRefs.current[block.id] = node;
+                  }}
+                />
+                <div className="editor-dropzone-inner">
+                  <span className="editor-dropzone-title">Drag and drop a photo or video</span>
+                  <span className="editor-dropzone-subtitle">or click to upload</span>
+                </div>
+              </label>
               {mediaLimitError ? (
                 <p className="text-xs text-red-700">{mediaLimitError}</p>
               ) : null}
@@ -1330,14 +1785,31 @@ export function BlockEditor({
                       />
                     )}
                   </div>
-                  <button
-                    type="button"
-                    className="text-xs uppercase tracking-[0.2em]"
-                    style={{ color: "var(--text-muted)" }}
-                    onClick={() => removeMediaSelection(block.id)}
-                  >
-                    Remove photo
-                  </button>
+                  <div className="mt-3 flex flex-wrap items-center gap-3">
+                    {!previews[block.id].persistedId ? (
+                      <button
+                        type="button"
+                        className="text-xs uppercase tracking-[0.2em]"
+                        style={{ color: "var(--accent)" }}
+                        onClick={() => void handleUploadBlockMedia(block.id)}
+                        disabled={previews[block.id].uploading}
+                      >
+                        {previews[block.id].uploading ? "Uploading..." : "Upload"}
+                      </button>
+                    ) : (
+                      <span className="text-xs uppercase tracking-[0.2em]" style={{ color: "var(--text-muted)" }}>
+                        Uploaded
+                      </span>
+                    )}
+                    <button
+                      type="button"
+                      className="text-xs uppercase tracking-[0.2em]"
+                      style={{ color: "var(--text-muted)" }}
+                      onClick={() => void confirmRemoveBlockMedia(block.id)}
+                    >
+                      Remove photo
+                    </button>
+                  </div>
                   <button
                     type="button"
                     className="editor-media-resize-handle"
@@ -1386,7 +1858,7 @@ export function BlockEditor({
           {block.type === "gallery" ? (
             <div className="mt-4 grid gap-3">
               <p className="text-xs uppercase tracking-[0.2em] text-[color:var(--muted)]">
-                Drop multiple images or videos to build a gallery.
+                Drop up to {MAX_GALLERY_ITEMS} images to build a gallery.
               </p>
               <label
                 className={`editor-dropzone ${dropOverId === block.id ? "is-active" : ""}`}
@@ -1403,8 +1875,7 @@ export function BlockEditor({
               >
                 <input
                   type="file"
-                  name="mediaFiles"
-                  accept="image/*,video/*"
+                  accept="image/*"
                   multiple
                   onChange={(event) => {
                     if (event.target.files) {
@@ -1421,7 +1892,7 @@ export function BlockEditor({
                 />
                 <div className="editor-dropzone-inner">
                   <span className="editor-dropzone-title">Drag and drop files</span>
-                  <span className="editor-dropzone-subtitle">or click to upload multiple photos and videos</span>
+                  <span className="editor-dropzone-subtitle">or click to upload multiple photos</span>
                 </div>
               </label>
               {mediaLimitError ? (
@@ -1438,6 +1909,19 @@ export function BlockEditor({
                         className="editor-gallery-card"
                         role="button"
                         tabIndex={0}
+                        draggable
+                        onDragStart={(event) => {
+                          event.dataTransfer?.setData("text/plain", preview.id ?? "");
+                          setDraggingGallery({ blockId: block.id, index: previewIndex });
+                        }}
+                        onDragOver={(event) => event.preventDefault()}
+                        onDrop={() => {
+                          if (draggingGallery?.blockId === block.id) {
+                            moveGalleryItem(block.id, draggingGallery.index, previewIndex);
+                            setDraggingGallery(null);
+                          }
+                        }}
+                        onDragEnd={() => setDraggingGallery(null)}
                         onClick={() => setGalleryModal({ blockId: block.id, index: previewIndex })}
                         onKeyDown={(event) => {
                           if (event.key === "Enter" || event.key === " ") {
@@ -1478,13 +1962,41 @@ export function BlockEditor({
                               </div>
                             </div>
                           ) : null}
+                          {!preview.persistedId ? (
+                            <button
+                              type="button"
+                              className="text-xs uppercase tracking-[0.2em]"
+                              style={{ color: "var(--accent)" }}
+                              onClick={(event) => {
+                                event.preventDefault();
+                                event.stopPropagation();
+                                void handleUploadGalleryItem(block.id, preview.id ?? "", previewIndex);
+                              }}
+                              disabled={preview.uploading}
+                            >
+                              {preview.uploading ? "Uploading..." : "Upload"}
+                            </button>
+                          ) : (
+                            <span className="text-xs uppercase tracking-[0.2em]" style={{ color: "var(--text-muted)" }}>
+                              Uploaded
+                            </span>
+                          )}
                           <button
                             type="button"
                             className="editor-gallery-remove text-xs uppercase tracking-[0.2em]"
                             style={{ color: "var(--text-muted)" }}
                             onClick={(event) => {
+                              event.preventDefault();
                               event.stopPropagation();
-                              removeGalleryItem(block.id, previewIndex);
+                              void confirmRemoveGalleryItem(block.id, previewIndex);
+                            }}
+                            onPointerDown={(event) => {
+                              event.preventDefault();
+                              event.stopPropagation();
+                            }}
+                            onMouseDown={(event) => {
+                              event.preventDefault();
+                              event.stopPropagation();
                             }}
                           >
                             Remove
@@ -1506,55 +2018,44 @@ export function BlockEditor({
               <p className="text-xs uppercase tracking-[0.2em]" style={{ color: 'var(--text-muted)' }}>
                 Full-width cover photo with overlay copy.
               </p>
-              <input
-                type="file"
-                name="mediaFiles"
-                accept="image/*,video/*"
-                onChange={(event) => {
-                  const file = event.target.files?.[0];
-                  const availableSlots = remainingMediaSlots + (previews[block.id] ? 1 : 0);
-                  if (file && availableSlots <= 0) {
-                    setMediaLimitError(`You can upload up to ${MAX_MEDIA_FILES} photos per story.`);
-                    clearMediaInput(block.id);
-                    return;
-                  }
-                  updateBlock(block.id, { mediaFileName: file ? file.name : "" });
+              <label
+                className={`editor-dropzone ${dropOverId === block.id ? "is-active" : ""}`}
+                onDragOver={(event) => {
+                  event.preventDefault();
+                  setDropOverId(block.id);
+                }}
+                onDragLeave={() => setDropOverId(null)}
+                onDrop={(event) => {
+                  event.preventDefault();
+                  setDropOverId(null);
+                  const file = event.dataTransfer.files?.[0];
                   if (file) {
-                    const nextUrl = URL.createObjectURL(file);
-                    setPreviews((current) => {
-                      const existing = current[block.id];
-                      if (existing?.url) {
-                        URL.revokeObjectURL(existing.url);
-                      }
-                      return {
-                        ...current,
-                        [block.id]: { url: nextUrl, isVideo: file.type.startsWith("video"), progress: 0 },
-                      };
-                    });
-                    trackFileProgress(file, (value) => {
-                      setPreviews((current) => ({
-                        ...current,
-                        [block.id]: {
-                          ...(current[block.id] ?? { url: nextUrl, isVideo: file.type.startsWith("video"), progress: value }),
-                          progress: value,
-                        },
-                      }));
-                    });
+                    handleSingleMediaFile(block.id, file, false);
                   }
                 }}
-                className="border rounded-lg px-4 py-2"
-                style={{ 
-                  borderColor: 'var(--border-gray)', 
-                  backgroundColor: 'var(--bg-gray-50)',
-                  color: 'var(--text-primary)'
-                }}
-                onFocus={() => setActiveBlockId(block.id)}
-                data-block-id={block.id}
-                data-block-type="background"
-                ref={(node) => {
-                  mediaInputRefs.current[block.id] = node;
-                }}
-              />
+              >
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={(event) => {
+                    const file = event.target.files?.[0];
+                    if (file) {
+                      handleSingleMediaFile(block.id, file, false);
+                    }
+                  }}
+                  className="sr-only"
+                  onFocus={() => setActiveBlockId(block.id)}
+                  data-block-id={block.id}
+                  data-block-type="background"
+                  ref={(node) => {
+                    mediaInputRefs.current[block.id] = node;
+                  }}
+                />
+                <div className="editor-dropzone-inner">
+                  <span className="editor-dropzone-title">Drag and drop a cover photo</span>
+                  <span className="editor-dropzone-subtitle">or click to upload</span>
+                </div>
+              </label>
               {mediaLimitError ? (
                 <p className="text-xs text-red-700">{mediaLimitError}</p>
               ) : null}
@@ -1592,14 +2093,31 @@ export function BlockEditor({
                       />
                     )}
                   </div>
-                  <button
-                    type="button"
-                    className="text-xs uppercase tracking-[0.2em]"
-                    style={{ color: "var(--text-muted)" }}
-                    onClick={() => removeMediaSelection(block.id)}
-                  >
-                    Remove photo
-                  </button>
+                  <div className="mt-3 flex flex-wrap items-center gap-3">
+                    {!previews[block.id].persistedId ? (
+                      <button
+                        type="button"
+                        className="text-xs uppercase tracking-[0.2em]"
+                        style={{ color: "var(--accent)" }}
+                        onClick={() => void handleUploadBlockMedia(block.id)}
+                        disabled={previews[block.id].uploading}
+                      >
+                        {previews[block.id].uploading ? "Uploading..." : "Upload"}
+                      </button>
+                    ) : (
+                      <span className="text-xs uppercase tracking-[0.2em]" style={{ color: "var(--text-muted)" }}>
+                        Uploaded
+                      </span>
+                    )}
+                    <button
+                      type="button"
+                      className="text-xs uppercase tracking-[0.2em]"
+                      style={{ color: "var(--text-muted)" }}
+                      onClick={() => void confirmRemoveBlockMedia(block.id)}
+                    >
+                      Remove photo
+                    </button>
+                  </div>
                   <button
                     type="button"
                     className="editor-media-resize-handle"

@@ -22,6 +22,18 @@ type MediaPreviewItem = {
   fileName: string;
 };
 
+const VIDEO_EXTENSIONS = new Set(["mp4", "m4v", "mov", "webm", "ogv", "ogg"]);
+const DEFAULT_COVER_HEIGHT = 420;
+
+function getFileExtension(fileName: string) {
+  const parts = fileName.toLowerCase().split(".");
+  return parts.length > 1 ? parts[parts.length - 1] : "";
+}
+
+function isVideoName(fileName: string) {
+  return VIDEO_EXTENSIONS.has(getFileExtension(fileName));
+}
+
 function parseBlocks(raw: string): Block[] {
   if (!raw) return [];
   try {
@@ -37,27 +49,50 @@ function buildPreviewState(formId: string): { state: PreviewState; urls: string[
   const titleInput = form?.querySelector<HTMLInputElement>("#editor-title");
   const excerptInput = form?.querySelector<HTMLInputElement>("#editor-excerpt");
   const contentInput = form?.querySelector<HTMLInputElement>("input[name=content]");
+  const mediaPreviewInput = form?.querySelector<HTMLInputElement>('input[name="mediaPreview"]');
   const title = titleInput?.value?.trim() || "Untitled field note";
   const excerpt = excerptInput?.value?.trim() || "";
   const rawContent = contentInput?.value || "";
   const mediaByBlock: Record<string, MediaPreviewItem[]> = {};
   const urls: string[] = [];
 
-  const mediaInputs = form?.querySelectorAll<HTMLInputElement>('input[name="mediaFiles"][data-block-id]');
-  mediaInputs?.forEach((input) => {
-    const blockId = input.dataset.blockId;
-    if (!blockId || !input.files || input.files.length === 0) return;
-    const items = Array.from(input.files).map((file) => {
-      const url = URL.createObjectURL(file);
-      urls.push(url);
-      return {
-        url,
-        isVideo: file.type.startsWith("video"),
-        fileName: file.name,
-      };
+  if (mediaPreviewInput?.value) {
+    try {
+      const parsed = JSON.parse(mediaPreviewInput.value) as Record<
+        string,
+        { url: string; isVideo: boolean; fileName?: string; persistedId?: string }[]
+      >;
+      Object.entries(parsed).forEach(([blockId, items]) => {
+        if (!Array.isArray(items) || items.length === 0) return;
+        mediaByBlock[blockId] = items.map((item) => ({
+          url: item.url,
+          isVideo: item.isVideo,
+          fileName: item.fileName ?? "",
+        }));
+        items.forEach((item) => urls.push(item.url));
+      });
+    } catch {
+      // ignore parsing errors and fallback to file inputs
+    }
+  }
+
+  if (Object.keys(mediaByBlock).length === 0) {
+    const mediaInputs = form?.querySelectorAll<HTMLInputElement>('input[name="mediaFiles"][data-block-id]');
+    mediaInputs?.forEach((input) => {
+      const blockId = input.dataset.blockId;
+      if (!blockId || !input.files || input.files.length === 0) return;
+      const items = Array.from(input.files).map((file) => {
+        const url = URL.createObjectURL(file);
+        urls.push(url);
+        return {
+          url,
+          isVideo: file.type.startsWith("video") || isVideoName(file.name),
+          fileName: file.name,
+        };
+      });
+      mediaByBlock[blockId] = items;
     });
-    mediaByBlock[blockId] = items;
-  });
+  }
 
   return {
     state: {
@@ -81,6 +116,14 @@ export function EditorPreview({ formId }: EditorPreviewProps) {
     rawContent: "",
     mediaByBlock: {},
   });
+
+  const coverBlock = preview.blocks.find((block) => block.type === "background");
+  const coverMedia = coverBlock?.id ? preview.mediaByBlock[coverBlock.id]?.[0] : undefined;
+  const coverHeight = coverBlock
+    ? typeof coverBlock?.height === "number"
+      ? coverBlock.height
+      : DEFAULT_COVER_HEIGHT
+    : undefined;
 
   useEffect(() => {
     if (!open) return;
@@ -125,15 +168,18 @@ export function EditorPreview({ formId }: EditorPreviewProps) {
   }, [open, formId]);
 
   const renderedBlocks = useMemo(() => {
-    if (!preview.rawContent && preview.blocks.length === 0) {
+    const blocksToRender = coverBlock
+      ? preview.blocks.filter((block) => block.type !== "background")
+      : preview.blocks;
+    if (!preview.rawContent && blocksToRender.length === 0) {
       return <p className="preview-muted">Start writing to see the preview.</p>;
     }
 
-    if (!preview.blocks.length && preview.rawContent) {
+    if (!blocksToRender.length && preview.rawContent) {
       return <p className="preview-paragraph">{renderInlineText(preview.rawContent)}</p>;
     }
 
-    return preview.blocks.map((block, index) => {
+    return blocksToRender.map((block, index) => {
       const key = block.id || `${block.type}-${index}`;
       if (block.type === "heading") {
         const level = block.level === "h1" || block.level === "h3" ? block.level : "h2";
@@ -171,7 +217,7 @@ export function EditorPreview({ formId }: EditorPreviewProps) {
         const previewItems = block.id ? preview.mediaByBlock[block.id] : undefined;
         const previewItem = previewItems?.[0];
         const mediaHeight =
-          typeof block.height === "number" ? { height: `${block.height}px` } : undefined;
+          typeof block.height === "number" ? { minHeight: `${block.height}px` } : undefined;
         return (
           <div key={key} className="preview-media">
             <div className="preview-media-frame" style={mediaHeight}>
@@ -276,15 +322,34 @@ export function EditorPreview({ formId }: EditorPreviewProps) {
       {open ? (
         <div className="modal-backdrop" onClick={() => setOpen(false)}>
           <div className="modal-panel modal-panel-light preview-panel" onClick={(event) => event.stopPropagation()}>
-            <div className="preview-header">
-              <div>
-                <p className="preview-eyebrow">Preview mode</p>
-                <h2 className="preview-title">{preview.title}</h2>
-                {preview.excerpt ? <p className="preview-excerpt">{preview.excerpt}</p> : null}
+            <div
+              className={`preview-hero ${coverBlock ? "preview-hero-covered" : ""}`}
+              style={
+                coverMedia && !coverMedia.isVideo
+                  ? { backgroundImage: `url(${coverMedia.url})`, minHeight: coverHeight }
+                  : coverHeight
+                    ? { minHeight: coverHeight }
+                    : undefined
+              }
+            >
+              {coverMedia?.isVideo ? (
+                <video className="preview-hero-media" autoPlay muted loop playsInline>
+                  <source src={coverMedia.url} />
+                </video>
+              ) : null}
+              {coverBlock ? <div className="preview-hero-overlay" /> : null}
+              <div className="preview-hero-content">
+                <div className="preview-header">
+                  <div>
+                    <p className="preview-eyebrow">Preview mode</p>
+                    <h2 className="preview-title">{preview.title}</h2>
+                    {preview.excerpt ? <p className="preview-excerpt">{preview.excerpt}</p> : null}
+                  </div>
+                  <button type="button" className="preview-close" onClick={() => setOpen(false)}>
+                    Close
+                  </button>
+                </div>
               </div>
-              <button type="button" className="preview-close" onClick={() => setOpen(false)}>
-                Close
-              </button>
             </div>
             <div className="preview-content">
               {renderedBlocks}
