@@ -77,7 +77,7 @@ export async function getNotificationsForUser(
       });
 
       items.push(
-        ...posts.map((post) => ({
+        ...posts.map((post): NotificationListItem => ({
           id: `pending-review:${post.id}`,
           category: "pending-review",
           title: post.title,
@@ -96,7 +96,7 @@ export async function getNotificationsForUser(
       });
 
       items.push(
-        ...likes.map((like) => ({
+        ...likes.map((like): NotificationListItem => ({
           id: `likes:${like.id}`,
           category: "likes",
           title: like.post.title,
@@ -116,7 +116,7 @@ export async function getNotificationsForUser(
       });
 
       items.push(
-        ...shares.map((like) => ({
+        ...shares.map((like): NotificationListItem => ({
           id: `shares:${like.id}`,
           category: "shares",
           title: like.post.title,
@@ -135,7 +135,7 @@ export async function getNotificationsForUser(
       });
 
       items.push(
-        ...comments.map((comment) => ({
+        ...comments.map((comment): NotificationListItem => ({
           id: `comments:${comment.id}`,
           category: "comments",
           title: comment.post.title,
@@ -155,7 +155,7 @@ export async function getNotificationsForUser(
       });
 
       items.push(
-        ...notes.map((note) => ({
+        ...notes.map((note): NotificationListItem => ({
           id: `notes:${note.id}`,
           category: "notes",
           title: note.post.title,
@@ -175,7 +175,7 @@ export async function getNotificationsForUser(
       });
 
       items.push(
-        ...comments.map((comment) => ({
+        ...comments.map((comment): NotificationListItem => ({
           id: `admin-comments:${comment.id}`,
           category: "admin-comments",
           title: comment.post.title,
@@ -195,7 +195,7 @@ export async function getNotificationsForUser(
       });
 
       items.push(
-        ...likes.map((like) => ({
+        ...likes.map((like): NotificationListItem => ({
           id: `likes:${like.id}`,
           category: "likes",
           title: like.post.title,

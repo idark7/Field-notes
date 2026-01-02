@@ -215,7 +215,6 @@ export function TiptapEditor({
           const y = Math.max(12, rect.top - 48);
           setGalleryMenu({ pos, x, y });
           setShowGalleryResize(false);
-          setImageMenu(null);
           setImageResizeActive(false);
           return true;
         },
@@ -699,7 +698,7 @@ export function TiptapEditor({
     event.target.value = "";
   };
 
-  const handleDrop = (event: React.DragEvent<HTMLDivElement>) => {
+  const handleDrop = (event: React.DragEvent<HTMLElement>) => {
     event.preventDefault();
     if (mediaType === "youtube") {
       const text = event.dataTransfer.getData("text/plain").trim();
@@ -716,7 +715,7 @@ export function TiptapEditor({
     handleMediaFiles(files);
   };
 
-  const handleDragOver = (event: React.DragEvent<HTMLDivElement>) => {
+  const handleDragOver = (event: React.DragEvent<HTMLElement>) => {
     event.preventDefault();
   };
 
@@ -1356,11 +1355,7 @@ export function TiptapEditor({
                         }}
                         onDragEnd={() => setGalleryDeleteActive(false)}
                       >
-                        {mediaType === "video" ? (
-                          <video src={url} />
-                        ) : (
-                          <img src={url} alt="" />
-                        )}
+                        <img src={url} alt="" />
                         {mediaType === "gallery" ? <span className="tiptap-drag-hint">Drag</span> : null}
                       </div>
                     ))}
