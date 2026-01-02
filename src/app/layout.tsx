@@ -96,18 +96,18 @@ export default async function RootLayout({
 
         const items = [
           ...notes.map((note) => ({
-            id: `note-${note.id}`,
+            id: `notes:${note.id}`,
             title: note.post.title,
             message: note.text,
             createdAt: note.createdAt,
-            href: `/editor/edit/${note.postId}`,
+            href: `/notifications/notes:${note.id}`,
           })),
           ...adminComments.map((comment) => ({
-            id: `comment-${comment.id}`,
+            id: `admin-comments:${comment.id}`,
             title: comment.post.title,
             message: comment.text,
             createdAt: comment.createdAt,
-            href: `/essay/${comment.post.slug}`,
+            href: `/notifications/admin-comments:${comment.id}`,
           })),
         ];
 

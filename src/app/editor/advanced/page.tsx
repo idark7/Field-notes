@@ -5,11 +5,10 @@ import { prisma } from "@/lib/db";
 import { getSessionUser } from "@/lib/auth";
 import { estimateReadTimeMinutes, extractPreviewText, slugify } from "@/lib/utils";
 import { getMediaSortOrders } from "@/lib/mediaSort";
-import { BlockEditor } from "@/components/BlockEditor";
+import { TiptapEditor } from "@/components/TiptapEditor";
 import { AdvancedEditorShell } from "@/components/AdvancedEditorShell";
 import { SeoFields } from "@/components/SeoFields";
-import { EditorAutosave } from "@/components/EditorAutosave";
-import { PreSubmitChecklist } from "@/components/PreSubmitChecklist";
+import { AdvancedPublishBar } from "@/components/AdvancedPublishBar";
 import { EditorPreview } from "@/components/EditorPreview";
 
 async function createPost(formData: FormData) {
@@ -39,7 +38,13 @@ async function createPost(formData: FormData) {
   const slug = `${slugBase}-${Date.now().toString().slice(-6)}`;
   const resolvedExcerpt = excerpt || extractPreviewText(content, 160);
   const readTimeMin = estimateReadTimeMinutes(content);
-  const status = (user.role === "ADMIN" && statusRaw ? statusRaw : "PENDING") as PostStatus;
+  const status = (
+    statusRaw === "DRAFT"
+      ? "DRAFT"
+      : user.role === "ADMIN" && statusRaw
+        ? statusRaw
+        : "PENDING"
+  ) as PostStatus;
 
   const tagNames = tagsRaw
     ? tagsRaw.split(",").map((tag) => tag.trim()).filter(Boolean)
@@ -55,7 +60,7 @@ async function createPost(formData: FormData) {
       select: { id: true, slug: true, revision: true, status: true, authorId: true },
     });
     if (!existing || (existing.authorId !== user.id && user.role !== "ADMIN")) {
-      redirect("/editor");
+      redirect("/editor/advanced");
     }
     const nextSlug = existing.status === "DRAFT" ? `${slugBase}-${existing.id.slice(-6)}` : existing.slug;
     post = await prisma.post.update({
@@ -166,7 +171,7 @@ async function createPost(formData: FormData) {
     redirect(`/essay/${post.slug}`);
   }
 
-  redirect("/editor?submitted=1");
+  redirect("/editor/advanced?submitted=1");
 }
 
 export default async function AdvancedEditorPage() {
@@ -178,11 +183,11 @@ export default async function AdvancedEditorPage() {
   return (
     <main className="min-h-screen pb-20" style={{ background: "var(--page-gradient)" }}>
       <AdvancedEditorShell />
-      <section className="mx-auto max-w-[760px] px-6 pt-16">
+      <section className="mx-auto w-full max-w-[1280px] px-6 pt-16">
         <div className="flex flex-wrap items-center justify-end gap-3">
           <EditorPreview formId="editor-form" />
           <Link
-            href="/editor"
+            href="/editor/basic"
             className="rounded-full border border-[color:var(--border)] px-5 py-2 text-sm font-semibold text-[color:var(--foreground)] transition hover:border-[color:var(--accent)] hover:text-[color:var(--accent)]"
           >
             Use basic editor
@@ -190,9 +195,15 @@ export default async function AdvancedEditorPage() {
         </div>
 
         <form id="editor-form" action={createPost} className="mt-10 grid gap-10">
-          <EditorAutosave draftKey={`new-${user.id}`} fallbackDraftKeys={[`advanced-${user.id}`]} />
+          <AdvancedPublishBar
+            role={user.role}
+            formId="editor-form"
+            draftKey={`new-${user.id}`}
+            fallbackDraftKeys={[`advanced-${user.id}`]}
+          />
           <input type="hidden" name="postId" data-autosave="postId" />
-          <div className="grid gap-10">
+          <input type="hidden" name="status" defaultValue="DRAFT" />
+          <div className="grid items-start gap-10 lg:grid-cols-[minmax(0,1fr)_360px]">
             <div className="editor-main">
               <input
                 type="text"
@@ -204,63 +215,45 @@ export default async function AdvancedEditorPage() {
                 data-autosave="title"
                 style={{ fontFamily: "var(--font-display)" }}
               />
-              <BlockEditor variant="advanced" />
+              <TiptapEditor />
             </div>
-            <details className="rounded-2xl border border-[color:var(--border)] bg-[color:var(--surface)] p-6">
-              <summary className="cursor-pointer text-sm font-semibold text-[color:var(--foreground)]">
-                Post details
-              </summary>
-              <div className="mt-6 grid gap-6">
-                <div className="editor-panel-card">
-                  <p className="editor-panel-title">Details</p>
-                  <div className="grid gap-4">
-                    <div className="grid gap-2">
-                      <label className="text-xs uppercase tracking-[0.2em] text-[color:var(--muted)]">
-                        Tags
-                      </label>
-                      <input
-                        type="text"
-                        name="tags"
-                        placeholder="Adventure, Coast, Culture"
-                        className="editor-input"
-                        id="editor-tags"
-                        data-autosave="tags"
-                      />
-                    </div>
-                    <div className="grid gap-2">
-                      <label className="text-xs uppercase tracking-[0.2em] text-[color:var(--muted)]">
-                        Categories
-                      </label>
-                      <input
-                        type="text"
-                        name="categories"
-                        placeholder="Nature, Mountains, City"
-                        className="editor-input"
-                        id="editor-categories"
-                        data-autosave="categories"
-                      />
-                    </div>
+            <aside className="grid gap-6">
+              <div className="editor-panel-card">
+                <p className="editor-panel-title">Details</p>
+                <div className="grid gap-4">
+                  <div className="grid gap-2">
+                    <label className="text-xs uppercase tracking-[0.2em] text-[color:var(--muted)]">
+                      Tags
+                    </label>
+                    <input
+                      type="text"
+                      name="tags"
+                      placeholder="Adventure, Coast, Culture"
+                      className="editor-input"
+                      id="editor-tags"
+                      data-autosave="tags"
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <label className="text-xs uppercase tracking-[0.2em] text-[color:var(--muted)]">
+                      Categories
+                    </label>
+                    <input
+                      type="text"
+                      name="categories"
+                      placeholder="Nature, Mountains, City"
+                      className="editor-input"
+                      id="editor-categories"
+                      data-autosave="categories"
+                    />
                   </div>
                 </div>
-                <div className="editor-panel-card">
-                  <p className="editor-panel-title">SEO</p>
-                  <SeoFields />
-                </div>
-                {user.role === "ADMIN" ? (
-                  <div className="editor-panel-card">
-                    <p className="editor-panel-title">Publish</p>
-                    <select name="status" className="editor-input" defaultValue="DRAFT">
-                      <option value="DRAFT">Draft</option>
-                      <option value="PENDING">Pending Review</option>
-                      <option value="APPROVED">Approved</option>
-                      <option value="REJECTED">Rejected</option>
-                      <option value="NEEDS_CHANGES">Needs Changes</option>
-                    </select>
-                  </div>
-                ) : null}
-                <PreSubmitChecklist formId="editor-form" />
               </div>
-            </details>
+              <div className="editor-panel-card">
+                <p className="editor-panel-title">SEO</p>
+                <SeoFields />
+              </div>
+            </aside>
           </div>
         </form>
       </section>

@@ -17,6 +17,10 @@ function stripInlineFormatting(value: string) {
     .replace(/`(.*?)`/g, "$1");
 }
 
+function stripHtmlTags(value: string) {
+  return value.replace(/<[^>]*>/g, " ");
+}
+
 function extractTextFromBlocks(content: string) {
   try {
     const parsed = JSON.parse(content);
@@ -40,7 +44,7 @@ function extractTextFromBlocks(content: string) {
       })
       .join(" ");
   } catch {
-    return content;
+    return stripHtmlTags(content);
   }
 }
 

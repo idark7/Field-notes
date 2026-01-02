@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { renderInlineText } from "@/lib/inlineFormat";
+import { sanitizeRichText } from "@/lib/sanitize";
+import { RichTextGalleryLightbox } from "@/components/RichTextGalleryLightbox";
 import type { Block } from "@/components/BlockEditor";
 
 type EditorPreviewProps = {
@@ -176,6 +178,15 @@ export function EditorPreview({ formId }: EditorPreviewProps) {
     }
 
     if (!blocksToRender.length && preview.rawContent) {
+      const isHtml = preview.rawContent.trim().startsWith("<");
+      if (isHtml) {
+        return (
+          <RichTextGalleryLightbox
+            className="tiptap-content"
+            html={sanitizeRichText(preview.rawContent)}
+          />
+        );
+      }
       return <p className="preview-paragraph">{renderInlineText(preview.rawContent)}</p>;
     }
 

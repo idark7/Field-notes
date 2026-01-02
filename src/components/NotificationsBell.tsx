@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import Link from "next/link";
+import { useEffect, useRef, useState } from "react";
 
 type NotificationItem = {
   id: string;
@@ -25,6 +26,7 @@ type NotificationsBellProps = {
 
 export function NotificationsBell({ items, summary, badgeCount }: NotificationsBellProps) {
   const [open, setOpen] = useState(false);
+  const popoverRef = useRef<HTMLDivElement>(null);
   const summaryCount = summary
     ? Object.values(summary).reduce((total, value) => total + (value ?? 0), 0)
     : 0;
@@ -37,8 +39,29 @@ export function NotificationsBell({ items, summary, badgeCount }: NotificationsB
     setUnreadCount(initialCount);
   }, [initialCount]);
 
+  useEffect(() => {
+    if (!open) return;
+    const handleClick = (event: MouseEvent) => {
+      if (!popoverRef.current) return;
+      if (!popoverRef.current.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    };
+    const handleKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClick);
+    document.addEventListener("keydown", handleKey);
+    return () => {
+      document.removeEventListener("mousedown", handleClick);
+      document.removeEventListener("keydown", handleKey);
+    };
+  }, [open]);
+
   return (
-    <div className="relative">
+    <div className="relative" ref={popoverRef}>
       <button
         type="button"
         onClick={() => {
@@ -71,49 +94,66 @@ export function NotificationsBell({ items, summary, badgeCount }: NotificationsB
           ) : (
             <div className="mt-3 grid gap-3">
               {summary?.pendingReview ? (
-                <div className="header-popover-item">
+                <Link
+                  className="header-popover-item"
+                  href="/notifications?filter=pending-review"
+                  onClick={() => setOpen(false)}
+                >
                   <p className="font-semibold">Pending review</p>
                   <p className="mt-1 text-xs text-[color:var(--muted)]">
                     {summary.pendingReview} item(s) need review.
                   </p>
-                </div>
+                </Link>
               ) : null}
               {summary?.likes ? (
-                <div className="header-popover-item">
+                <Link
+                  className="header-popover-item"
+                  href="/notifications?filter=likes"
+                  onClick={() => setOpen(false)}
+                >
                   <p className="font-semibold">Likes</p>
                   <p className="mt-1 text-xs text-[color:var(--muted)]">
                     {summary.likes} new like(s).
                   </p>
-                </div>
+                </Link>
               ) : null}
               {summary?.shares ? (
-                <div className="header-popover-item">
+                <Link
+                  className="header-popover-item"
+                  href="/notifications?filter=shares"
+                  onClick={() => setOpen(false)}
+                >
                   <p className="font-semibold">Shares</p>
                   <p className="mt-1 text-xs text-[color:var(--muted)]">
                     {summary.shares} share(s) on admin stories.
                   </p>
-                </div>
+                </Link>
               ) : null}
               {summary?.comments ? (
-                <div className="header-popover-item">
+                <Link
+                  className="header-popover-item"
+                  href="/notifications?filter=comments"
+                  onClick={() => setOpen(false)}
+                >
                   <p className="font-semibold">Comments</p>
                   <p className="mt-1 text-xs text-[color:var(--muted)]">
                     {summary.comments} new comment(s).
                   </p>
-                </div>
+                </Link>
               ) : null}
               {items.map((item) => (
-                <a
+                <Link
                   key={item.id}
                   href={item.href}
                   className="header-popover-item"
+                  onClick={() => setOpen(false)}
                 >
                   <p className="font-semibold">{item.title}</p>
                   <p className="mt-1 text-xs text-[color:var(--muted)]">{item.message}</p>
                   <p className="mt-2 text-[10px] uppercase tracking-[0.2em] text-[color:var(--muted)]">
                     {item.createdAt}
                   </p>
-                </a>
+                </Link>
               ))}
             </div>
           )}

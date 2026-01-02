@@ -10,7 +10,11 @@ function sanitizeHref(raw: string) {
   return SAFE_LINK_RE.test(trimmed) ? trimmed : null;
 }
 
-export function renderInlineText(value: string) {
+type InlineFormatOptions = {
+  hideMarkers?: boolean;
+};
+
+export function renderInlineText(value: string, options: InlineFormatOptions = {}) {
   const nextKey = (() => {
     let index = 0;
     return () => `inline-${index++}`;
@@ -19,6 +23,7 @@ export function renderInlineText(value: string) {
   const parse = (text: string): ReactNode[] => {
     const nodes: ReactNode[] = [];
     let buffer = "";
+    const { hideMarkers } = options;
 
     const flush = () => {
       if (buffer) {
@@ -30,6 +35,13 @@ export function renderInlineText(value: string) {
     for (let i = 0; i < text.length; ) {
       const char = text[i];
       const two = text.slice(i, i + 2) as InlineToken;
+
+      if (char === "\n") {
+        flush();
+        nodes.push(<br key={nextKey()} />);
+        i += 1;
+        continue;
+      }
 
       if (two === "**" || two === "__" || two === "~~") {
         const end = text.indexOf(two, i + 2);
@@ -46,6 +58,10 @@ export function renderInlineText(value: string) {
           i = end + 2;
           continue;
         }
+        if (hideMarkers) {
+          i += 2;
+          continue;
+        }
       }
 
       if (char === "*") {
@@ -57,6 +73,10 @@ export function renderInlineText(value: string) {
           i = end + 1;
           continue;
         }
+        if (hideMarkers) {
+          i += 1;
+          continue;
+        }
       }
 
       if (char === "`") {
@@ -65,6 +85,10 @@ export function renderInlineText(value: string) {
           flush();
           nodes.push(<code key={nextKey()}>{text.slice(i + 1, end)}</code>);
           i = end + 1;
+          continue;
+        }
+        if (hideMarkers) {
+          i += 1;
           continue;
         }
       }
@@ -92,7 +116,9 @@ export function renderInlineText(value: string) {
                 </a>
               );
             } else {
-              nodes.push(`[${label}](${href})`);
+              if (!hideMarkers) {
+                nodes.push(`[${label}](${href})`);
+              }
             }
             i = closeParen + 1;
             continue;

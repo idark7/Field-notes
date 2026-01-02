@@ -5,9 +5,10 @@ import { useEffect, useRef, useState } from "react";
 type EditorAutosaveProps = {
   draftKey: string;
   fallbackDraftKeys?: string[];
+  actions?: React.ReactNode;
 };
 
-export function EditorAutosave({ draftKey, fallbackDraftKeys = [] }: EditorAutosaveProps) {
+export function EditorAutosave({ draftKey, fallbackDraftKeys = [], actions }: EditorAutosaveProps) {
   const storageKey = `gdt-draft-${draftKey}`;
   const [lastSaved, setLastSaved] = useState<string | null>(null);
   const [autoSaveEnabled, setAutoSaveEnabled] = useState(true);
@@ -121,17 +122,20 @@ export function EditorAutosave({ draftKey, fallbackDraftKeys = [] }: EditorAutos
         <span>
           {autoSaveEnabled ? (lastSaved ? `Saved ${lastSaved}` : "Autosave enabled") : "Autosave paused"}
         </span>
-        <button
-          type="button"
-          onClick={() => setAutoSaveEnabled((value) => !value)}
-          className="rounded-full border px-3 py-1 text-[10px] uppercase tracking-[0.25em]"
-          style={{
-            borderColor: autoSaveEnabled ? "var(--accent)" : "var(--border-gray)",
-            color: autoSaveEnabled ? "var(--accent)" : "var(--text-muted)",
-          }}
-        >
-          {autoSaveEnabled ? "Auto-save on" : "Auto-save off"}
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setAutoSaveEnabled((value) => !value)}
+            className="rounded-full border px-3 py-1 text-[10px] uppercase tracking-[0.25em]"
+            style={{
+              borderColor: autoSaveEnabled ? "var(--accent)" : "var(--border-gray)",
+              color: autoSaveEnabled ? "var(--accent)" : "var(--text-muted)",
+            }}
+          >
+            {autoSaveEnabled ? "Auto-save on" : "Auto-save off"}
+          </button>
+          {actions}
+        </div>
       </div>
       {saveError ? (
         <p className="text-xs text-red-700">{saveError}</p>

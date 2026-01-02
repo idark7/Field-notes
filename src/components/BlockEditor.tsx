@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { renderInlineText } from "@/lib/inlineFormat";
 
 export type BlockType = "heading" | "paragraph" | "quote" | "list" | "media" | "gallery" | "background" | "divider";
 
@@ -556,6 +557,7 @@ export function BlockEditor({
     }
     applyFormat("[", `](${url})`);
   }
+
 
   function startResize(event: React.PointerEvent<HTMLButtonElement>, block: Block) {
     event.preventDefault();
@@ -1591,6 +1593,7 @@ export function BlockEditor({
                 value={block.text ?? ""}
                 onChange={(event) => updateBlock(block.id, { text: event.target.value })}
                 onContextMenu={(event) => openFormatMenu(event, { blockId: block.id, field: "text" })}
+                onMouseUp={(event) => openFormatMenu(event, { blockId: block.id, field: "text" })}
                 placeholder={headingLevel === "h1" ? "Section headline" : headingLevel === "h2" ? "Section heading" : "Subheading"}
                 className={
                   isAdvanced
@@ -1610,54 +1613,73 @@ export function BlockEditor({
           ) : null}
 
           {block.type === "paragraph" ? (
-            <textarea
-              value={block.text ?? ""}
-              onChange={(event) => updateBlock(block.id, { text: event.target.value })}
-              onInput={handleTextareaInput}
-              onContextMenu={(event) => openFormatMenu(event, { blockId: block.id, field: "text" })}
-              onMouseUp={(event) => openFormatMenu(event, { blockId: block.id, field: "text" })}
-              placeholder={
-                isAdvanced ? (index === 0 ? "Tell your story..." : "Continue writing...") : "Paragraph text"
-              }
-              data-autoresize={isAdvanced ? "true" : undefined}
-              className={
-                isAdvanced
-                  ? "mt-2 w-full resize-none border-none bg-transparent px-0 py-0 text-[18px] leading-[28px] focus:outline-none"
-                  : "mt-4 w-full border rounded-lg px-4 py-3 min-h-[140px]"
-              }
-              style={{ 
-                color: 'var(--text-primary)',
-                backgroundColor: isAdvanced ? 'transparent' : 'var(--bg-gray-50)',
-                borderColor: isAdvanced ? 'transparent' : 'var(--border-gray)'
-              }}
-              data-block-id={block.id}
-              data-field="text"
-              onFocus={() => setActiveBlockId(block.id)}
-            />
+            <div
+              className={`editor-rich-field text-[18px] leading-[28px] ${isAdvanced ? "editor-rich-advanced mt-2" : "editor-rich-basic mt-4"}`}
+            >
+              <div className="editor-rich-display">
+                {block.text ? renderInlineText(block.text, { hideMarkers: true }) : null}
+              </div>
+              <textarea
+                value={block.text ?? ""}
+                onChange={(event) => updateBlock(block.id, { text: event.target.value })}
+                onInput={handleTextareaInput}
+                onContextMenu={(event) => openFormatMenu(event, { blockId: block.id, field: "text" })}
+                onMouseUp={(event) => openFormatMenu(event, { blockId: block.id, field: "text" })}
+                placeholder={
+                  isAdvanced ? (index === 0 ? "Tell your story..." : "Continue writing...") : "Paragraph text"
+                }
+                data-autoresize={isAdvanced ? "true" : undefined}
+                className={
+                  isAdvanced
+                    ? "editor-rich-textarea w-full resize-none border-none bg-transparent px-0 py-0 focus:outline-none"
+                    : "editor-rich-textarea w-full border rounded-lg px-4 py-3 min-h-[140px]"
+                }
+                style={{
+                  color: "transparent",
+                  caretColor: "var(--text-primary)",
+                  backgroundColor: isAdvanced ? "transparent" : "var(--bg-gray-50)",
+                  borderColor: isAdvanced ? "transparent" : "var(--border-gray)",
+                }}
+                data-block-id={block.id}
+                data-field="text"
+                onFocus={() => setActiveBlockId(block.id)}
+              />
+            </div>
           ) : null}
 
           {block.type === "quote" ? (
-            <textarea
-              value={block.text ?? ""}
-              onChange={(event) => updateBlock(block.id, { text: event.target.value })}
-              onInput={handleTextareaInput}
-              onContextMenu={(event) => openFormatMenu(event, { blockId: block.id, field: "text" })}
-              placeholder="Quote text"
-              data-autoresize={isAdvanced ? "true" : undefined}
-              className={
-                isAdvanced
-                  ? "mt-3 w-full resize-none border-none bg-transparent px-0 py-0 text-[18px] italic leading-[30px] focus:outline-none"
-                  : "mt-4 w-full border rounded-lg px-4 py-3 min-h-[120px]"
-              }
-              style={{ 
-                color: 'var(--text-primary)',
-                backgroundColor: isAdvanced ? 'transparent' : 'var(--bg-gray-50)',
-                borderColor: isAdvanced ? 'transparent' : 'var(--border-gray)'
-              }}
-              data-block-id={block.id}
-              data-field="text"
-              onFocus={() => setActiveBlockId(block.id)}
-            />
+            <div
+              className={`editor-rich-field editor-rich-quote text-[18px] leading-[30px] italic ${
+                isAdvanced ? "editor-rich-advanced mt-3" : "editor-rich-basic mt-4"
+              }`}
+            >
+              <div className="editor-rich-display">
+                {block.text ? renderInlineText(block.text, { hideMarkers: true }) : null}
+              </div>
+              <textarea
+                value={block.text ?? ""}
+                onChange={(event) => updateBlock(block.id, { text: event.target.value })}
+                onInput={handleTextareaInput}
+                onContextMenu={(event) => openFormatMenu(event, { blockId: block.id, field: "text" })}
+                onMouseUp={(event) => openFormatMenu(event, { blockId: block.id, field: "text" })}
+                placeholder="Quote text"
+                data-autoresize={isAdvanced ? "true" : undefined}
+                className={
+                  isAdvanced
+                    ? "editor-rich-textarea w-full resize-none border-none bg-transparent px-0 py-0 focus:outline-none"
+                    : "editor-rich-textarea w-full border rounded-lg px-4 py-3 min-h-[120px]"
+                }
+                style={{
+                  color: "transparent",
+                  caretColor: "var(--text-primary)",
+                  backgroundColor: isAdvanced ? "transparent" : "var(--bg-gray-50)",
+                  borderColor: isAdvanced ? "transparent" : "var(--border-gray)",
+                }}
+                data-block-id={block.id}
+                data-field="text"
+                onFocus={() => setActiveBlockId(block.id)}
+              />
+            </div>
           ) : null}
 
           {block.type === "list" ? (
@@ -1674,11 +1696,14 @@ export function BlockEditor({
                   onContextMenu={(event) =>
                     openFormatMenu(event, { blockId: block.id, field: "items", itemIndex: idx })
                   }
+                  onMouseUp={(event) =>
+                    openFormatMenu(event, { blockId: block.id, field: "items", itemIndex: idx })
+                  }
                   placeholder={`List item ${idx + 1}`}
                   className={
                     isAdvanced
                       ? "border-none bg-transparent px-0 py-2 text-[18px] focus:outline-none"
-                      : "border rounded-lg px-4 py-2"
+                    : "border rounded-lg px-4 py-2"
                   }
                   style={{ 
                     color: 'var(--text-primary)',
@@ -2152,6 +2177,7 @@ export function BlockEditor({
                 value={block.overlayTitle ?? ""}
                 onChange={(event) => updateBlock(block.id, { overlayTitle: event.target.value })}
                 onContextMenu={(event) => openFormatMenu(event, { blockId: block.id, field: "overlayTitle" })}
+                onMouseUp={(event) => openFormatMenu(event, { blockId: block.id, field: "overlayTitle" })}
                 placeholder="Overlay headline"
                 className="border rounded-lg px-4 py-2"
                 style={{ 
@@ -2168,6 +2194,7 @@ export function BlockEditor({
                 onChange={(event) => updateBlock(block.id, { overlayText: event.target.value })}
                 onInput={handleTextareaInput}
                 onContextMenu={(event) => openFormatMenu(event, { blockId: block.id, field: "overlayText" })}
+                onMouseUp={(event) => openFormatMenu(event, { blockId: block.id, field: "overlayText" })}
                 placeholder="Overlay description"
                 data-autoresize={isAdvanced ? "true" : undefined}
                 className="border rounded-lg px-4 py-3 min-h-[120px]"
@@ -2366,23 +2393,60 @@ export function BlockEditor({
           aria-label="Text formatting"
           style={{ top: formatMenu.y, left: formatMenu.x }}
         >
-          <button type="button" role="menuitem" className="editor-format-item" onClick={() => applyFormat("**")}>
-            Bold
+          <button
+            type="button"
+            role="menuitem"
+            className="editor-format-item editor-format-strong"
+            onClick={() => applyFormat("**")}
+            aria-label="Bold"
+          >
+            B
           </button>
-          <button type="button" role="menuitem" className="editor-format-item" onClick={() => applyFormat("*")}>
-            Italic
+          <button
+            type="button"
+            role="menuitem"
+            className="editor-format-item editor-format-italic"
+            onClick={() => applyFormat("*")}
+            aria-label="Italic"
+          >
+            i
           </button>
-          <button type="button" role="menuitem" className="editor-format-item" onClick={() => applyFormat("__")}>
-            Underline
+          <button
+            type="button"
+            role="menuitem"
+            className="editor-format-item editor-format-link"
+            onClick={applyLinkFormat}
+            aria-label="Link"
+          >
+            link
           </button>
-          <button type="button" role="menuitem" className="editor-format-item" onClick={() => applyFormat("~~")}>
-            Strike
+          <span className="editor-format-divider" aria-hidden />
+          <button
+            type="button"
+            role="menuitem"
+            className="editor-format-item editor-format-strong"
+            onClick={() => applyFormat("__")}
+            aria-label="Underline"
+          >
+            T
           </button>
-          <button type="button" role="menuitem" className="editor-format-item" onClick={() => applyFormat("`")}>
-            Code
+          <button
+            type="button"
+            role="menuitem"
+            className="editor-format-item editor-format-strong"
+            onClick={() => applyFormat("~~")}
+            aria-label="Strike"
+          >
+            T
           </button>
-          <button type="button" role="menuitem" className="editor-format-item" onClick={applyLinkFormat}>
-            Link
+          <button
+            type="button"
+            role="menuitem"
+            className="editor-format-item editor-format-quote"
+            onClick={() => applyFormat("`")}
+            aria-label="Code"
+          >
+            ""
           </button>
         </div>
       ) : null}

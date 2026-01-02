@@ -5,9 +5,12 @@ import { getSessionUser } from "@/lib/auth";
 import { EssayActionIcons } from "@/components/EssayActionIcons";
 import { CommentsSection } from "@/components/CommentsSection";
 import { LightboxImage } from "@/components/LightboxImage";
+import { GalleryClickProxy } from "@/components/GalleryClickProxy";
+import { RichTextGalleryLightbox } from "@/components/RichTextGalleryLightbox";
 import { AdminReviewModal } from "@/components/AdminReviewModal";
 import { renderInlineText } from "@/lib/inlineFormat";
 import { SiteFooter } from "@/components/SiteFooter";
+import { sanitizeRichText } from "@/lib/sanitize";
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }) {
   const resolvedParams = await params;
@@ -258,7 +261,7 @@ function renderBlocks(
         return null;
       }
       return (
-        <div key={key} className="story-gallery-grid">
+        <GalleryClickProxy key={key} className="story-gallery-grid">
           {galleryMedia.map((item, galleryIndex) => {
             if (!item) return null;
             const caption = galleryItems[galleryIndex]?.caption;
@@ -270,14 +273,14 @@ function renderBlocks(
                     <source src={`/api/media/${item.id}`} type={resolvedMimeType(item)} />
                   </video>
                 ) : (
-                    <LightboxImage
-                      itemId={item.id}
-                      items={lightboxItems}
-                      src={`/api/media/${item.id}`}
-                      alt={fallbackAlt}
-                      caption={caption || fallbackAlt}
-                      className="w-full rounded-[10px] object-cover"
-                    />
+                  <LightboxImage
+                    itemId={item.id}
+                    items={lightboxItems}
+                    src={`/api/media/${item.id}`}
+                    alt={fallbackAlt}
+                    caption={caption || fallbackAlt}
+                    className="w-full rounded-[10px] object-cover"
+                  />
                 )}
                 {caption ? (
                   <figcaption className="story-gallery-caption">{caption}</figcaption>
@@ -285,7 +288,7 @@ function renderBlocks(
               </figure>
             );
           })}
-        </div>
+        </GalleryClickProxy>
       );
     }
 
@@ -377,6 +380,7 @@ export default async function EssayPage({ params }: { params: Promise<{ slug: st
 
   const sortedMedia = [...post.media].sort((a, b) => a.sortOrder - b.sortOrder);
   const blocks = parseBlocks(post.content);
+  const isHtmlContent = !blocks && post.content.trim().startsWith("<");
   const coverBlockIndex = blocks ? blocks.findIndex((block) => block.type === "background") : -1;
   const coverBlock = coverBlockIndex >= 0 && blocks ? blocks[coverBlockIndex] : undefined;
   let coverMediaIndex = 0;
@@ -566,7 +570,7 @@ export default async function EssayPage({ params }: { params: Promise<{ slug: st
                         <AdminReviewModal postId={post.id} postTitle={post.title} action={reviewPost} />
                       ) : (
                         <>
-                          <Link className="edit-story-link" href={`/editor/edit/${post.id}`}>
+                          <Link className="edit-story-link" href={`/editor/advanced/edit/${post.id}`}>
                             Edit story
                           </Link>
                           {isAdminAuthor ? (
@@ -606,7 +610,14 @@ export default async function EssayPage({ params }: { params: Promise<{ slug: st
           <div className="mt-10 grid gap-6">
             {contentBlocks
               ? renderBlocks(contentBlocks, contentMedia, 0, lightboxItems)
-              : renderPlainText(post.content)}
+              : isHtmlContent ? (
+                <RichTextGalleryLightbox
+                  className="tiptap-content"
+                  html={sanitizeRichText(post.content)}
+                />
+              ) : (
+                renderPlainText(post.content)
+              )}
           </div>
 
           <CommentsSection

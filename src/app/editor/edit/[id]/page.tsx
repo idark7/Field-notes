@@ -36,11 +36,11 @@ async function updatePost(formData: FormData) {
 
   const post = await prisma.post.findUnique({ where: { id: postId } });
   if (!post || (post.authorId !== user.id && user.role !== "ADMIN")) {
-    redirect("/editor");
+    redirect("/editor/basic");
   }
 
   if (post.status === "PENDING" && user.role !== "ADMIN") {
-    redirect("/editor?view=stories&tab=review&locked=1");
+    redirect("/editor/basic?view=stories&tab=review&locked=1");
   }
 
   const readTimeMin = estimateReadTimeMinutes(content);
@@ -149,7 +149,7 @@ async function updatePost(formData: FormData) {
     redirect(`/essay/${post.slug}`);
   }
 
-  redirect("/editor?submitted=1");
+  redirect("/editor/basic?submitted=1");
 }
 
 async function restoreRevision(formData: FormData) {
@@ -174,7 +174,7 @@ async function restoreRevision(formData: FormData) {
   }
 
   if (user.role !== "ADMIN" && revision.post.authorId !== user.id) {
-    redirect("/editor");
+    redirect("/editor/basic");
   }
 
   const nextRevision = revision.post.revision + 1;
@@ -234,7 +234,7 @@ export default async function EditPostPage({ params }: { params: Promise<{ id: s
   });
 
   if (!post || (post.authorId !== user.id && user.role !== "ADMIN")) {
-    redirect("/editor");
+    redirect("/editor/basic");
   }
 
   const tags = post.tags.map((tag) => tag.tag.name).join(", ");

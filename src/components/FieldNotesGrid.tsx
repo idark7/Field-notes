@@ -281,39 +281,6 @@ export function FieldNotesGrid({
       <section className="border-b border-[var(--border)]">
         <div className="mx-auto max-w-[1232px] px-6 py-16">
           <div className="grid gap-10 md:grid-cols-[minmax(0,1fr)_360px] md:items-start">
-            {showPagination ? (
-              <div className="flex flex-wrap items-center justify-end gap-4 md:col-span-2" aria-live="polite">
-                <button
-                  type="button"
-                  onClick={() => fetchPage(page - 1, "prev")}
-                  disabled={page <= 1 || isFetching}
-                  className="inline-flex h-9 items-center justify-center rounded-full px-4 text-sm font-medium"
-                  style={{
-                    border: "1px solid var(--border-gray)",
-                    color: "var(--text-primary)",
-                    opacity: page <= 1 || isFetching ? 0.4 : 1,
-                  }}
-                >
-                  Previous
-                </button>
-                <span className="text-sm" style={{ color: "var(--text-muted)" }}>
-                  Page {page} of {totalPages}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => fetchPage(page + 1, "next")}
-                  disabled={page >= totalPages || isFetching}
-                  className="inline-flex h-9 items-center justify-center rounded-full px-4 text-sm font-medium"
-                  style={{
-                    border: "1px solid var(--border-gray)",
-                    color: "var(--text-primary)",
-                    opacity: page >= totalPages || isFetching ? 0.4 : 1,
-                  }}
-                >
-                  Next
-                </button>
-              </div>
-            ) : null}
             <div>
               <p className="text-[14px] uppercase tracking-[0.55px] text-[var(--text-muted)]">Field Notes</p>
               <h1
@@ -342,6 +309,39 @@ export function FieldNotesGrid({
               ) : null}
             </div>
             <div className="field-notes-panel md:sticky md:top-24">
+              {showPagination ? (
+                <div className="mb-6 flex flex-wrap items-center justify-end gap-4" aria-live="polite">
+                  <button
+                    type="button"
+                    onClick={() => fetchPage(page - 1, "prev")}
+                    disabled={page <= 1 || isFetching}
+                    className="inline-flex h-9 items-center justify-center rounded-full px-4 text-sm font-medium"
+                    style={{
+                      border: "1px solid var(--border-gray)",
+                      color: "var(--text-primary)",
+                      opacity: page <= 1 || isFetching ? 0.4 : 1,
+                    }}
+                  >
+                    Previous
+                  </button>
+                  <span className="text-sm" style={{ color: "var(--text-muted)" }}>
+                    Page {page} of {totalPages}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => fetchPage(page + 1, "next")}
+                    disabled={page >= totalPages || isFetching}
+                    className="inline-flex h-9 items-center justify-center rounded-full px-4 text-sm font-medium"
+                    style={{
+                      border: "1px solid var(--border-gray)",
+                      color: "var(--text-primary)",
+                      opacity: page >= totalPages || isFetching ? 0.4 : 1,
+                    }}
+                  >
+                    Next
+                  </button>
+                </div>
+              ) : null}
               <div className="field-notes-panel-section">
                 <p className="field-notes-panel-title">Search</p>
                 <input
