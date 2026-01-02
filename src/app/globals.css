@@ -328,9 +328,41 @@ body.advanced-editor-body {
   color: #fff;
 }
 
+.editor-publish-button.is-saving {
+  position: relative;
+  pointer-events: none;
+}
+
+.editor-publish-button.is-saving::after {
+  content: "";
+  position: absolute;
+  right: 14px;
+  top: 50%;
+  width: 14px;
+  height: 14px;
+  margin-top: -7px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.4);
+  border-top-color: rgba(255, 255, 255, 0.9);
+  animation: editorSpin 0.8s linear infinite;
+}
+
+@keyframes editorSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .editor-publish-secondary {
   background: transparent;
   color: var(--text-muted);
+}
+
+.editor-publish-secondary.is-attention {
+  border-color: rgba(245, 115, 22, 0.7);
+  background: rgba(245, 115, 22, 0.12);
+  color: var(--text-primary);
+  box-shadow: 0 10px 20px rgba(245, 115, 22, 0.2);
 }
 
 .editor-publish-modal {
@@ -473,6 +505,7 @@ body.advanced-editor-body {
 
 .tiptap-toolbar {
   display: flex;
+  align-items: center;
   flex-wrap: wrap;
   gap: 8px;
   padding: 10px 12px;
@@ -482,6 +515,8 @@ body.advanced-editor-body {
   box-shadow: 0 14px 28px rgba(0, 0, 0, 0.18);
   position: absolute;
   z-index: 30;
+  overflow: visible;
+  white-space: nowrap;
   transition: opacity 160ms ease, transform 160ms ease;
 }
 
@@ -520,6 +555,50 @@ body.advanced-editor-body {
   cursor: not-allowed;
 }
 
+.tiptap-tool[aria-label],
+.tiptap-heading-button[aria-label] {
+  position: relative;
+}
+
+.tiptap-tool[aria-label]:not(:disabled):hover::after,
+.tiptap-tool[aria-label]:not(:disabled):focus-visible::after,
+.tiptap-heading-button[aria-label]:not(:disabled):hover::after,
+.tiptap-heading-button[aria-label]:not(:disabled):focus-visible::after {
+  content: attr(aria-label);
+  position: absolute;
+  left: 50%;
+  top: calc(100% + 10px);
+  transform: translateX(-50%);
+  background: rgba(15, 15, 15, 0.9);
+  color: #fff;
+  padding: 6px 10px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: none;
+  white-space: nowrap;
+  z-index: 50;
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.18);
+  pointer-events: none;
+}
+
+.tiptap-tool[aria-label]:not(:disabled):hover::before,
+.tiptap-tool[aria-label]:not(:disabled):focus-visible::before,
+.tiptap-heading-button[aria-label]:not(:disabled):hover::before,
+.tiptap-heading-button[aria-label]:not(:disabled):focus-visible::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: calc(100% + 4px);
+  transform: translateX(-50%);
+  border-width: 6px;
+  border-style: solid;
+  border-color: transparent transparent rgba(15, 15, 15, 0.9) transparent;
+  z-index: 50;
+  pointer-events: none;
+}
+
 .tiptap-divider {
   width: 1px;
   height: 22px;
@@ -541,6 +620,58 @@ body.advanced-editor-body {
   border-radius: 999px;
   border: 1px solid var(--border-gray);
   background: rgba(0, 0, 0, 0.2);
+}
+
+.tiptap-toolbar-select {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px;
+  border-radius: 999px;
+  border: 1px solid var(--border-gray);
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.tiptap-toolbar-select select {
+  border: none;
+  background: transparent;
+  color: var(--text-primary);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 6px 28px 6px 10px;
+  border-radius: 999px;
+  appearance: none;
+  cursor: pointer;
+}
+
+.tiptap-toolbar-select select:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.tiptap-toolbar-select::after {
+  content: "▾";
+  margin-left: -20px;
+  color: var(--text-secondary);
+  font-size: 10px;
+  pointer-events: none;
+}
+
+.tiptap-toolbar-media {
+  border-color: rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.tiptap-row-break {
+  flex-basis: 100%;
+  height: 0;
+}
+
+.tiptap-align-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .tiptap-heading-button {
@@ -2657,6 +2788,16 @@ a {
   border-color: rgba(244, 115, 22, 0.45);
   box-shadow: 0 10px 20px var(--shadow-md);
   transform: translateY(-1px);
+}
+
+.delete-story-link {
+  border-color: rgba(231, 76, 60, 0.35);
+  color: #b42318;
+}
+
+.delete-story-link:hover {
+  border-color: rgba(231, 76, 60, 0.6);
+  box-shadow: 0 10px 20px rgba(231, 76, 60, 0.18);
 }
 
 .edit-story-note {

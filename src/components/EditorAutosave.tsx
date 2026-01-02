@@ -5,7 +5,9 @@ import { useEffect, useRef, useState } from "react";
 type EditorAutosaveProps = {
   draftKey: string;
   fallbackDraftKeys?: string[];
-  actions?: React.ReactNode;
+  actions?:
+    | React.ReactNode
+    | ((state: { autoSaveEnabled: boolean; saving: boolean; lastSaved: string | null }) => React.ReactNode);
 };
 
 export function EditorAutosave({ draftKey, fallbackDraftKeys = [], actions }: EditorAutosaveProps) {
@@ -116,6 +118,9 @@ export function EditorAutosave({ draftKey, fallbackDraftKeys = [], actions }: Ed
     };
   }, [storageKey, fallbackDraftKeys.join("|"), autoSaveEnabled]);
 
+  const resolvedActions =
+    typeof actions === "function" ? actions({ autoSaveEnabled, saving, lastSaved }) : actions;
+
   return (
     <>
       <div className="flex flex-wrap items-center justify-between gap-3 text-xs uppercase tracking-[0.3em]" style={{ color: "var(--text-muted)" }}>
@@ -134,7 +139,7 @@ export function EditorAutosave({ draftKey, fallbackDraftKeys = [], actions }: Ed
           >
             {autoSaveEnabled ? "Auto-save on" : "Auto-save off"}
           </button>
-          {actions}
+          {resolvedActions}
         </div>
       </div>
       {saveError ? (

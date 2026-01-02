@@ -155,11 +155,7 @@ async function updatePost(formData: FormData) {
     }
   }
 
-  if (status === "APPROVED") {
-    redirect(`/essay/${post.slug}`);
-  }
-
-  redirect("/editor/advanced?submitted=1");
+  void post;
 }
 
 export default async function AdvancedEditPage({ params }: { params: Promise<{ id: string }> }) {

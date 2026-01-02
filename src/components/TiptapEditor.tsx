@@ -2,10 +2,10 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { EditorContent, useEditor } from "@tiptap/react";
+import { Mark, mergeAttributes } from "@tiptap/core";
 import StarterKit from "@tiptap/starter-kit";
 import Link from "@tiptap/extension-link";
 import Underline from "@tiptap/extension-underline";
-import Highlight from "@tiptap/extension-highlight";
 import TextAlign from "@tiptap/extension-text-align";
 import Image from "@tiptap/extension-image";
 import Superscript from "@tiptap/extension-superscript";
@@ -33,6 +33,41 @@ const ResizableImage = Image.extend({
           return { "data-align": attributes.align };
         },
       },
+    };
+  },
+});
+
+const FontFamily = Mark.create({
+  name: "fontFamily",
+  addAttributes() {
+    return {
+      family: {
+        default: null,
+        parseHTML: (element) =>
+          element.style.fontFamily ? element.style.fontFamily.replace(/['"]/g, "") : null,
+        renderHTML: (attributes) => {
+          if (!attributes.family) return {};
+          return { style: `font-family: ${attributes.family}` };
+        },
+      },
+    };
+  },
+  parseHTML() {
+    return [{ style: "font-family" }];
+  },
+  renderHTML({ HTMLAttributes }) {
+    return ["span", mergeAttributes(HTMLAttributes), 0];
+  },
+  addCommands() {
+    return {
+      setFontFamily:
+        (family: string) =>
+        ({ commands }) =>
+          commands.setMark(this.name, { family }),
+      unsetFontFamily:
+        () =>
+        ({ commands }) =>
+          commands.unsetMark(this.name),
     };
   },
 });
@@ -129,11 +164,12 @@ export function TiptapEditor({
   const shellRef = useRef<HTMLDivElement>(null);
   const surfaceRef = useRef<HTMLDivElement>(null);
   const toolbarRef = useRef<HTMLDivElement>(null);
+  const hasDefaultHeading = useRef(false);
 
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
-        heading: { levels: [1, 2, 3] },
+        heading: { levels: [1, 2, 3, 4, 5, 6] },
         codeBlock: true,
       }),
       Underline,
@@ -142,9 +178,9 @@ export function TiptapEditor({
         autolink: true,
         linkOnPaste: true,
       }),
-      Highlight.configure({ multicolor: false }),
       TextAlign.configure({ types: ["heading", "paragraph"] }),
       ResizableImage.configure({ inline: false, allowBase64: false }),
+      FontFamily,
       Superscript,
       Subscript,
       GalleryExtension,
@@ -184,21 +220,37 @@ export function TiptapEditor({
     },
   });
 
+  const resolveTitleReady = () => {
+    const input =
+      (document.getElementById("editor-title") as HTMLInputElement | null) ??
+      (document.querySelector('[data-autosave="title"]') as HTMLInputElement | null);
+    if (!input) {
+      setTitleReady(true);
+      return true;
+    }
+    const ready = Boolean(input.value.trim());
+    setTitleReady(ready);
+    if (ready && !hasCreatedDraft.current) {
+      void ensurePostId().then(() => {
+        hasCreatedDraft.current = true;
+      });
+    }
+    return ready;
+  };
+
   useEffect(() => {
     const input = document.getElementById("editor-title") as HTMLInputElement | null;
     if (!input) return;
-    const update = () => {
-      const ready = Boolean(input.value.trim());
-      setTitleReady(ready);
-      if (ready && !hasCreatedDraft.current) {
-        void ensurePostId().then(() => {
-          hasCreatedDraft.current = true;
-        });
-      }
-    };
-    update();
+    resolveTitleReady();
+    const update = () => resolveTitleReady();
     input.addEventListener("input", update);
-    return () => input.removeEventListener("input", update);
+    input.addEventListener("change", update);
+    input.addEventListener("keyup", update);
+    return () => {
+      input.removeEventListener("input", update);
+      input.removeEventListener("change", update);
+      input.removeEventListener("keyup", update);
+    };
   }, []);
 
   useEffect(() => {
@@ -217,16 +269,28 @@ export function TiptapEditor({
       const headerHeight = header ? header.getBoundingClientRect().height : 0;
       const safeTop = headerHeight + 12;
       const top = surfaceRect.top - shellRect.top - toolbarRect.height - 20;
-      const left = surfaceRect.left - shellRect.left;
+      const availableWidth = surfaceRect.width;
+      const toolbarWidth = Math.min(toolbarRect.width, availableWidth);
+      const leftBase = surfaceRect.left - shellRect.left;
+      const centeredLeft =
+        toolbarRect.width > availableWidth
+          ? leftBase
+          : leftBase + Math.max(0, (availableWidth - toolbarWidth) / 2);
       setToolbarStyle({
         top: Math.max(safeTop - shellRect.top, top),
-        left: Math.max(0, left),
-        width: surfaceRect.width,
+        left: Math.max(0, centeredLeft),
+        width: toolbarRect.width > availableWidth ? availableWidth : "fit-content",
+        maxWidth: availableWidth,
       });
     };
     const handleFocus = () => {
+      const ready = resolveTitleReady();
       setToolbarVisible(true);
       requestAnimationFrame(updatePosition);
+      if (ready && editor && editor.isEmpty && !hasDefaultHeading.current) {
+        editor.chain().focus().setHeading({ level: 1 }).run();
+        hasDefaultHeading.current = true;
+      }
     };
     const handleBlur = () => {
       setTimeout(() => {
@@ -422,12 +486,14 @@ export function TiptapEditor({
       link: editor?.isActive("link") ?? false,
       code: editor?.isActive("code") ?? false,
       codeBlock: editor?.isActive("codeBlock") ?? false,
-      highlight: editor?.isActive("highlight") ?? false,
       superscript: editor?.isActive("superscript") ?? false,
       subscript: editor?.isActive("subscript") ?? false,
       h1: editor?.isActive("heading", { level: 1 }) ?? false,
       h2: editor?.isActive("heading", { level: 2 }) ?? false,
       h3: editor?.isActive("heading", { level: 3 }) ?? false,
+      h4: editor?.isActive("heading", { level: 4 }) ?? false,
+      h5: editor?.isActive("heading", { level: 5 }) ?? false,
+      h6: editor?.isActive("heading", { level: 6 }) ?? false,
       bulletList: editor?.isActive("bulletList") ?? false,
       orderedList: editor?.isActive("orderedList") ?? false,
       blockquote: editor?.isActive("blockquote") ?? false,
@@ -439,8 +505,21 @@ export function TiptapEditor({
     [editor, html, selectionVersion]
   );
 
-  const headingValue = activeStates.h1 ? "h1" : activeStates.h2 ? "h2" : activeStates.h3 ? "h3" : "p";
+  const headingValue = activeStates.h1
+    ? "h1"
+    : activeStates.h2
+      ? "h2"
+      : activeStates.h3
+        ? "h3"
+        : activeStates.h4
+          ? "h4"
+          : activeStates.h5
+            ? "h5"
+            : activeStates.h6
+              ? "h6"
+              : "h1";
   const toolbarDisabled = !titleReady || !editor;
+  const fontValue = editor?.getAttributes("fontFamily")?.family ?? "var(--font-body)";
 
   const applyAlignment = (value: "left" | "center" | "right" | "justify") => {
     if (!editor) return;
@@ -799,7 +878,11 @@ export function TiptapEditor({
         style={toolbarStyle}
         onMouseEnter={() => setToolbarHovered(true)}
         onMouseLeave={() => setToolbarHovered(false)}
-        onMouseDown={(event) => event.preventDefault()}
+        onMouseDown={(event) => {
+          const target = event.target as HTMLElement | null;
+          if (target?.closest("select")) return;
+          event.preventDefault();
+        }}
       >
         <button
           type="button"
@@ -822,38 +905,53 @@ export function TiptapEditor({
           ↻
         </button>
         <span className="tiptap-divider" aria-hidden />
-        <div className="tiptap-heading-group" role="group" aria-label="Heading level">
-          <button
-            type="button"
-            className={`tiptap-heading-button ${activeStates.h1 ? "is-active" : ""}`}
-            onClick={() => editor?.chain().focus().setHeading({ level: 1 }).run()}
-            onMouseDown={handleToolMouseDown}
-            aria-label="Heading 1"
+        <label className="tiptap-toolbar-select" aria-label="Font family">
+          <span className="sr-only">Font family</span>
+          <select
+            value={fontValue}
+            onChange={(event) => {
+              if (!editor) return;
+              const value = event.target.value;
+              editor.chain().focus().setFontFamily(value).run();
+            }}
             disabled={toolbarDisabled}
           >
-            H1
-          </button>
-          <button
-            type="button"
-            className={`tiptap-heading-button ${activeStates.h2 ? "is-active" : ""}`}
-            onClick={() => editor?.chain().focus().setHeading({ level: 2 }).run()}
-            onMouseDown={handleToolMouseDown}
-            aria-label="Heading 2"
+            <option value="var(--font-body)">Inter</option>
+            <option value="var(--font-display)">Playfair Display</option>
+            <option value="var(--font-mono)">Mono</option>
+          </select>
+        </label>
+        <label className="tiptap-toolbar-select" aria-label="Heading level">
+          <span className="sr-only">Heading level</span>
+          <select
+            value={headingValue}
+            onChange={(event) => {
+              const value = event.target.value;
+              if (!editor) return;
+              if (value === "h1") {
+                editor.chain().focus().setHeading({ level: 1 }).run();
+              } else if (value === "h2") {
+                editor.chain().focus().setHeading({ level: 2 }).run();
+              } else if (value === "h3") {
+                editor.chain().focus().setHeading({ level: 3 }).run();
+              } else if (value === "h4") {
+                editor.chain().focus().setHeading({ level: 4 }).run();
+              } else if (value === "h5") {
+                editor.chain().focus().setHeading({ level: 5 }).run();
+              } else if (value === "h6") {
+                editor.chain().focus().setHeading({ level: 6 }).run();
+              }
+            }}
             disabled={toolbarDisabled}
           >
-            H2
-          </button>
-          <button
-            type="button"
-            className={`tiptap-heading-button ${activeStates.h3 ? "is-active" : ""}`}
-            onClick={() => editor?.chain().focus().setHeading({ level: 3 }).run()}
-            onMouseDown={handleToolMouseDown}
-            aria-label="Heading 3"
-            disabled={toolbarDisabled}
-          >
-            H3
-          </button>
-        </div>
+            <option value="h1">H1</option>
+            <option value="h2">H2</option>
+            <option value="h3">H3</option>
+            <option value="h4">H4</option>
+            <option value="h5">H5</option>
+            <option value="h6">H6</option>
+          </select>
+        </label>
         <button
           type="button"
           className={`tiptap-tool ${activeStates.bulletList ? "is-active" : ""}`}
@@ -917,26 +1015,6 @@ export function TiptapEditor({
         </button>
         <button
           type="button"
-          className={`tiptap-tool ${activeStates.code ? "is-active" : ""}`}
-          onClick={() => editor?.chain().focus().toggleCode().run()}
-          onMouseDown={handleToolMouseDown}
-          aria-label="Inline code"
-          disabled={toolbarDisabled}
-        >
-          {"<>"}
-        </button>
-        <button
-          type="button"
-          className={`tiptap-tool ${activeStates.codeBlock ? "is-active" : ""}`}
-          onClick={() => editor?.chain().focus().toggleCodeBlock().run()}
-          onMouseDown={handleToolMouseDown}
-          aria-label="Code block"
-          disabled={toolbarDisabled}
-        >
-          {"</>"}
-        </button>
-        <button
-          type="button"
           className={`tiptap-tool ${activeStates.underline ? "is-active" : ""}`}
           onClick={() => editor?.chain().focus().toggleUnderline().run()}
           onMouseDown={handleToolMouseDown}
@@ -944,16 +1022,6 @@ export function TiptapEditor({
           disabled={toolbarDisabled}
         >
           U
-        </button>
-        <button
-          type="button"
-          className={`tiptap-tool ${activeStates.highlight ? "is-active" : ""}`}
-          onClick={() => editor?.chain().focus().toggleHighlight().run()}
-          onMouseDown={handleToolMouseDown}
-          aria-label="Highlight"
-          disabled={toolbarDisabled}
-        >
-          ✎
         </button>
         <button
           type="button"
@@ -985,53 +1053,71 @@ export function TiptapEditor({
         >
           x₂
         </button>
+        <span className="tiptap-row-break" aria-hidden />
         <span className="tiptap-divider" aria-hidden />
-        <button
-          type="button"
-          className={`tiptap-tool ${activeStates.alignLeft ? "is-active" : ""}`}
-          onClick={() => applyAlignment("left")}
-          onMouseDown={handleToolMouseDown}
-          aria-label="Align left"
-          disabled={toolbarDisabled}
-        >
-          ☰
-        </button>
-        <button
-          type="button"
-          className={`tiptap-tool ${activeStates.alignCenter ? "is-active" : ""}`}
-          onClick={() => applyAlignment("center")}
-          onMouseDown={handleToolMouseDown}
-          aria-label="Align center"
-          disabled={toolbarDisabled}
-        >
-          ≡
-        </button>
-        <button
-          type="button"
-          className={`tiptap-tool ${activeStates.alignRight ? "is-active" : ""}`}
-          onClick={() => applyAlignment("right")}
-          onMouseDown={handleToolMouseDown}
-          aria-label="Align right"
-          disabled={toolbarDisabled}
-        >
-          ☷
-        </button>
-        <button
-          type="button"
-          className={`tiptap-tool ${activeStates.alignJustify ? "is-active" : ""}`}
-          onClick={() => applyAlignment("justify")}
-          onMouseDown={handleToolMouseDown}
-          aria-label="Justify"
-          disabled={toolbarDisabled}
-        >
-          ▤
-        </button>
+        <div className="tiptap-align-row" role="group" aria-label="Alignment">
+          <button
+            type="button"
+            className={`tiptap-tool ${activeStates.alignLeft ? "is-active" : ""}`}
+            onClick={() => applyAlignment("left")}
+            onMouseDown={handleToolMouseDown}
+            aria-label="Align left"
+            disabled={toolbarDisabled}
+          >
+            ☰
+          </button>
+          <button
+            type="button"
+            className={`tiptap-tool ${activeStates.alignCenter ? "is-active" : ""}`}
+            onClick={() => applyAlignment("center")}
+            onMouseDown={handleToolMouseDown}
+            aria-label="Align center"
+            disabled={toolbarDisabled}
+          >
+            ≡
+          </button>
+          <button
+            type="button"
+            className={`tiptap-tool ${activeStates.alignRight ? "is-active" : ""}`}
+            onClick={() => applyAlignment("right")}
+            onMouseDown={handleToolMouseDown}
+            aria-label="Align right"
+            disabled={toolbarDisabled}
+          >
+            ☷
+          </button>
+          <button
+            type="button"
+            className={`tiptap-tool ${activeStates.alignJustify ? "is-active" : ""}`}
+            onClick={() => applyAlignment("justify")}
+            onMouseDown={handleToolMouseDown}
+            aria-label="Justify"
+            disabled={toolbarDisabled}
+          >
+            ▤
+          </button>
+        </div>
         <span className="tiptap-divider" aria-hidden />
+        <label className="tiptap-toolbar-select tiptap-toolbar-media" aria-label="Media type">
+          <span className="sr-only">Media type</span>
+          <select
+            value={mediaType}
+            onChange={(event) => {
+              setMediaType(event.target.value as MediaType);
+              resetMediaState();
+            }}
+            disabled={toolbarDisabled}
+          >
+            <option value="image">Image</option>
+            <option value="gallery">Gallery</option>
+            <option value="youtube">YouTube</option>
+          </select>
+        </label>
         <button
           type="button"
           className="tiptap-tool tiptap-add-media"
           onClick={() => {
-            if (!titleReady) return;
+            if (!resolveTitleReady()) return;
             setMediaOpen(true);
           }}
           onMouseDown={handleToolMouseDown}

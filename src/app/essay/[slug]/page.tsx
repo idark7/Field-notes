@@ -8,6 +8,7 @@ import { LightboxImage } from "@/components/LightboxImage";
 import { GalleryClickProxy } from "@/components/GalleryClickProxy";
 import { RichTextGalleryLightbox } from "@/components/RichTextGalleryLightbox";
 import { AdminReviewModal } from "@/components/AdminReviewModal";
+import { AdminDeleteEssayButton } from "@/components/AdminDeleteEssayButton";
 import { renderInlineText } from "@/lib/inlineFormat";
 import { SiteFooter } from "@/components/SiteFooter";
 import { sanitizeRichText } from "@/lib/sanitize";
@@ -150,6 +151,33 @@ async function reviewPost(formData: FormData) {
   }
 
   redirect(`/essay/${post.slug}?reviewed=1`);
+}
+
+async function deletePost(formData: FormData) {
+  "use server";
+
+  const user = await getSessionUser();
+  if (!user || user.role !== "ADMIN") {
+    redirect("/login");
+  }
+
+  const postId = String(formData.get("postId") || "");
+  if (!postId) {
+    return;
+  }
+
+  await prisma.$transaction([
+    prisma.comment.deleteMany({ where: { postId } }),
+    prisma.like.deleteMany({ where: { postId } }),
+    prisma.adminNote.deleteMany({ where: { postId } }),
+    prisma.postTag.deleteMany({ where: { postId } }),
+    prisma.postCategory.deleteMany({ where: { postId } }),
+    prisma.postRevision.deleteMany({ where: { postId } }),
+    prisma.media.deleteMany({ where: { postId } }),
+    prisma.post.delete({ where: { id: postId } }),
+  ]);
+
+  redirect("/field-notes");
 }
 
 function renderBlocks(
@@ -567,12 +595,20 @@ export default async function EssayPage({ params }: { params: Promise<{ slug: st
                   {canEditPost ? (
                     <div className="flex flex-col items-end">
                       {user?.role === "ADMIN" && !isAdminAuthor ? (
-                        <AdminReviewModal postId={post.id} postTitle={post.title} action={reviewPost} />
+                        <div className="flex items-center gap-2">
+                          <AdminReviewModal postId={post.id} postTitle={post.title} action={reviewPost} />
+                          <AdminDeleteEssayButton postId={post.id} action={deletePost} />
+                        </div>
                       ) : (
                         <>
-                          <Link className="edit-story-link" href={`/editor/advanced/edit/${post.id}`}>
-                            Edit story
-                          </Link>
+                          <div className="flex items-center gap-2">
+                            <Link className="edit-story-link" href={`/editor/advanced/edit/${post.id}`}>
+                              Edit story
+                            </Link>
+                            {user?.role === "ADMIN" ? (
+                              <AdminDeleteEssayButton postId={post.id} action={deletePost} />
+                            ) : null}
+                          </div>
                           {isAdminAuthor ? (
                             <span className="edit-story-note">Changes publish immediately.</span>
                           ) : (

@@ -184,9 +184,6 @@ export default async function RootLayout({
                     <Link className="user-link" href="/login">
                       Login
                     </Link>
-                    <Link className="user-link user-link-outline" href="/register">
-                      Register
-                    </Link>
                     <Link href="/editor" className="header-action">
                       <span className="header-action-icon" aria-hidden>
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -253,7 +250,6 @@ export default async function RootLayout({
                   ) : (
                     <>
                       <Link href="/login">Login</Link>
-                      <Link href="/register">Register</Link>
                     </>
                   )}
                   <Link

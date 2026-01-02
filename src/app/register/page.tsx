@@ -54,6 +54,7 @@ export default function RegisterPage() {
             required
             className="border rounded-lg px-4 py-3"
             style={{ borderColor: 'var(--border-gray)', background: 'var(--bg-white)', color: 'var(--text-primary)' }}
+            suppressHydrationWarning
           />
           <input
             type="email"
@@ -62,6 +63,7 @@ export default function RegisterPage() {
             required
             className="border rounded-lg px-4 py-3"
             style={{ borderColor: 'var(--border-gray)', background: 'var(--bg-white)', color: 'var(--text-primary)' }}
+            suppressHydrationWarning
           />
           <input
             type="password"
@@ -70,6 +72,7 @@ export default function RegisterPage() {
             required
             className="border rounded-lg px-4 py-3"
             style={{ borderColor: 'var(--border-gray)', background: 'var(--bg-white)', color: 'var(--text-primary)' }}
+            suppressHydrationWarning
           />
           {error ? <p className="text-sm text-red-700">{error}</p> : null}
           <button

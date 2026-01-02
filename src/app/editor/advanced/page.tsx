@@ -167,11 +167,7 @@ async function createPost(formData: FormData) {
     }
   }
 
-  if (status === "APPROVED" && post) {
-    redirect(`/essay/${post.slug}`);
-  }
-
-  redirect("/editor/advanced?submitted=1");
+  void post;
 }
 
 export default async function AdvancedEditorPage() {

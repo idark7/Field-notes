@@ -56,24 +56,63 @@ function collectValidations(formId: string): ValidationItem[] {
 export function AdvancedPublishBar({ role, formId, draftKey, fallbackDraftKeys = [] }: AdvancedPublishBarProps) {
   const [showModal, setShowModal] = useState(false);
   const [validations, setValidations] = useState<ValidationItem[]>([]);
+  const [savingStatus, setSavingStatus] = useState(false);
+  const [statusError, setStatusError] = useState("");
   const isAdmin = role === "ADMIN";
-  const primaryLabel = isAdmin ? "Publish" : "Submit for review";
+  const primaryLabel = isAdmin ? "Ready for Review" : "Ready for Review";
 
-  const statusValue = useMemo(
-    () => (isAdmin ? "APPROVED" : "PENDING"),
-    [isAdmin]
-  );
+  const statusValue = useMemo(() => (isAdmin ? "PENDING" : "PENDING"), [isAdmin]);
 
-  const hasRequiredMissing = validations.some((item) => item.required && !item.ok);
+  const collectPayload = () => {
+    const form = document.getElementById(formId) as HTMLFormElement | null;
+    const values: Record<string, string> = {};
+    if (!form) return values;
+    form.querySelectorAll<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>("[data-autosave]").forEach((el) => {
+      const key = el.getAttribute("data-autosave");
+      if (key) {
+        values[key] = el.value;
+      }
+    });
+    return values;
+  };
 
-  const submitForm = (status: string) => {
+  const saveStatus = async (status: string) => {
     const form = document.getElementById(formId) as HTMLFormElement | null;
     if (!form) return;
     const statusInput = form.querySelector<HTMLInputElement>('input[name="status"]');
-    if (statusInput) {
-      statusInput.value = status;
+    const postInput = form.querySelector<HTMLInputElement>('input[name="postId"]');
+    if (statusInput) statusInput.value = status;
+    setSavingStatus(true);
+    setStatusError("");
+    try {
+      const payload = collectPayload();
+      const response = await fetch("/api/editor/autosave", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (!response.ok) {
+        throw new Error("Unable to save draft.");
+      }
+      const data = (await response.json()) as { postId?: string };
+      if (data.postId && postInput) {
+        postInput.value = data.postId;
+      }
+      if (data.postId) {
+        const statusResponse = await fetch("/api/editor/status", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ postId: data.postId, status }),
+        });
+        if (!statusResponse.ok) {
+          throw new Error("Unable to update status.");
+        }
+      }
+    } catch (error) {
+      setStatusError(error instanceof Error ? error.message : "Unable to save.");
+    } finally {
+      setSavingStatus(false);
     }
-    form.requestSubmit();
   };
 
   return (
@@ -81,40 +120,44 @@ export function AdvancedPublishBar({ role, formId, draftKey, fallbackDraftKeys =
       <EditorAutosave
         draftKey={draftKey}
         fallbackDraftKeys={fallbackDraftKeys}
-        actions={
+        actions={({ autoSaveEnabled }) => (
           <>
             <button
               type="button"
-              className="editor-publish-button editor-publish-secondary"
-              onClick={() => submitForm("DRAFT")}
+              className={`editor-publish-button editor-publish-secondary ${autoSaveEnabled ? "" : "is-attention"} ${savingStatus ? "is-saving" : ""}`}
+              onClick={() => saveStatus("DRAFT")}
+              disabled={savingStatus}
             >
-              Save draft
+              {savingStatus ? "Saving..." : "Save as Draft"}
             </button>
             <button
               type="button"
-              className="editor-publish-button editor-publish-primary"
+              className={`editor-publish-button editor-publish-primary ${savingStatus ? "is-saving" : ""}`}
               onClick={() => {
                 setValidations(collectValidations(formId));
                 setShowModal(true);
               }}
+              disabled={savingStatus}
             >
-              {primaryLabel}
+              {savingStatus ? "Saving..." : primaryLabel}
             </button>
           </>
-        }
+        )}
       />
-
+      {statusError ? (
+        <p className="text-xs text-red-700">{statusError}</p>
+      ) : null}
       {showModal ? (
         <div className="editor-publish-modal">
           <div className="editor-publish-backdrop" onClick={() => setShowModal(false)} />
           <div className="editor-publish-panel" role="dialog" aria-modal="true">
             <div className="editor-publish-header">
-              <h3>Ready to {primaryLabel.toLowerCase()}?</h3>
+              <h3>Ready for review?</h3>
               <button type="button" onClick={() => setShowModal(false)} className="editor-publish-close">
                 ×
               </button>
             </div>
-            <p className="editor-publish-subtitle">Complete the required fields before you submit.</p>
+            <p className="editor-publish-subtitle">Quick checklist (optional). You can still submit.</p>
             <div className="editor-publish-list">
               {validations.map((item) => (
                 <div key={item.label} className={`editor-publish-row ${item.ok ? "is-ok" : "is-warn"}`}>
@@ -131,15 +174,14 @@ export function AdvancedPublishBar({ role, formId, draftKey, fallbackDraftKeys =
               </button>
               <button
                 type="button"
-                className={`editor-publish-primary ${hasRequiredMissing ? "is-disabled" : ""}`}
-                onClick={() => {
-                  if (hasRequiredMissing) return;
-                  submitForm(statusValue);
+                className={`editor-publish-primary ${savingStatus ? "is-saving" : ""}`}
+                onClick={async () => {
+                  await saveStatus(statusValue);
+                  setShowModal(false);
                 }}
-                title={hasRequiredMissing ? "Mandatory fields missing" : undefined}
-                aria-disabled={hasRequiredMissing}
+                disabled={savingStatus}
               >
-                {primaryLabel}
+                {savingStatus ? "Saving..." : "Ready for Review"}
               </button>
             </div>
           </div>

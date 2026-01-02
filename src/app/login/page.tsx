@@ -73,6 +73,16 @@ export default function LoginPage() {
             {loading ? "Signing in..." : "Login"}
           </button>
         </form>
+        <div className="mt-4 flex items-center justify-center gap-2 text-sm" style={{ color: 'var(--text-secondary)' }}>
+          <span>New here?</span>
+          <a
+            href="/register"
+            className="font-semibold underline underline-offset-4"
+            style={{ color: 'var(--text-primary)' }}
+          >
+            Sign up
+          </a>
+        </div>
       </div>
     </main>
   );
