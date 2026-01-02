@@ -179,7 +179,7 @@ export function TiptapEditor({
     extensions: [
       StarterKit.configure({
         heading: { levels: [1, 2, 3, 4, 5, 6] },
-        codeBlock: true,
+        codeBlock: {},
       }),
       Underline,
       Link.configure({
