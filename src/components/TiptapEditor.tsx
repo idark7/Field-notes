@@ -13,6 +13,15 @@ import Subscript from "@tiptap/extension-subscript";
 import { GalleryExtension } from "@/components/tiptap/GalleryExtension";
 import { NodeSelection } from "@tiptap/pm/state";
 
+declare module "@tiptap/core" {
+  interface Commands<ReturnType> {
+    fontFamily: {
+      setFontFamily: (family: string) => ReturnType;
+      unsetFontFamily: () => ReturnType;
+    };
+  }
+}
+
 const ResizableImage = Image.extend({
   addAttributes() {
     return {
