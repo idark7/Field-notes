@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { MediaType } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { getSessionUser } from "@/lib/auth";
 
@@ -36,7 +37,7 @@ function resolveMimeType(fileName: string, mimeType: string) {
   return VIDEO_MIME_MAP[ext] || IMAGE_MIME_MAP[ext] || mimeType || "application/octet-stream";
 }
 
-function resolveMediaMeta(file: File) {
+function resolveMediaMeta(file: File): { mimeType: string; type: MediaType } {
   const normalizedType = file.type && file.type !== "application/octet-stream" ? file.type : "";
   const ext = getFileExtension(file.name);
   const guessedMime = resolveMimeType(file.name, normalizedType);
@@ -45,7 +46,7 @@ function resolveMediaMeta(file: File) {
     : VIDEO_EXTENSIONS.has(ext) || guessedMime.startsWith("video");
   return {
     mimeType: guessedMime || normalizedType || "application/octet-stream",
-    type: isVideo ? "VIDEO" : "PHOTO",
+    type: isVideo ? MediaType.VIDEO : MediaType.PHOTO,
   };
 }
 
