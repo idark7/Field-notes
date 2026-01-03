@@ -87,8 +87,6 @@ export function FieldNotesGrid({
   const [activeAuthor, setActiveAuthor] = useState<string>("All");
   const [activeCollection, setActiveCollection] = useState<"all" | "editorial">(initialCollection);
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
-  const [selected, setSelected] = useState<Post | null>(null);
-  const [expanded, setExpanded] = useState(false);
   const [query, setQuery] = useState(initialQuery);
   const searchRef = useRef<HTMLInputElement>(null);
   const [displayPosts, setDisplayPosts] = useState<Post[]>(posts);
@@ -118,13 +116,6 @@ export function FieldNotesGrid({
           description:
             "Explore every travel story in our editorial archive. Browse recent essays, rediscover timeless journeys, and dive deeper into the voices of our travelers.",
         };
-
-  useEffect(() => {
-    if (viewMode === "list" && selected) {
-      setSelected(null);
-      setExpanded(false);
-    }
-  }, [viewMode, selected]);
 
   useEffect(() => {
     if (autoFocus) {
@@ -241,38 +232,40 @@ export function FieldNotesGrid({
     const mediaId = post.media.find((item) => item.type === "PHOTO")?.id;
     const fallbackKey = post.categories[0]?.category.name ?? "Field Notes";
     return (
-      <article key={post.id} className="group cursor-pointer" onClick={() => setSelected(post)}>
-        <p className="text-xs uppercase tracking-widest text-[var(--accent)] mb-2">{fallbackKey}</p>
-        <h3 className="text-xl font-semibold mb-2 group-hover:text-[var(--accent)] transition-colors">
-          {post.title}
-        </h3>
-        <StoryCoverImage
-          src={mediaId ? `/api/media/${mediaId}` : undefined}
-          alt={post.title}
-          className="story-cover h-48 w-full rounded-lg mb-4 object-cover"
-        />
-        <p className="text-[var(--text-secondary)] text-sm mb-4 line-clamp-3">
-          {post.excerpt || "Discover this amazing travel story."}
-        </p>
-        <div className="flex items-center gap-2 text-xs text-[var(--text-muted)]">
-          <span className="inline-flex items-center gap-2">
-            {post.author.image ? (
-              <img
-                src={post.author.image}
-                alt={post.author.name}
-                className="h-5 w-5 rounded-full object-cover"
-              />
-            ) : (
-              <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[var(--surface)]/70 text-[9px] font-semibold text-[var(--text-tertiary)]">
-                {getInitials(post.author.name)}
-              </span>
-            )}
-            <span>{post.author.name}</span>
-          </span>
-          <span>•</span>
-          <span>{post.readTimeMin} min read</span>
-        </div>
-      </article>
+      <Link key={post.id} href={`/essay/${post.slug}`} className="group block">
+        <article className="cursor-pointer">
+          <p className="text-xs uppercase tracking-widest text-[var(--accent)] mb-2">{fallbackKey}</p>
+          <h3 className="text-xl font-semibold mb-2 group-hover:text-[var(--accent)] transition-colors">
+            {post.title}
+          </h3>
+          <StoryCoverImage
+            src={mediaId ? `/api/media/${mediaId}` : undefined}
+            alt={post.title}
+            className="story-cover h-48 w-full rounded-lg mb-4 object-cover"
+          />
+          <p className="text-[var(--text-secondary)] text-sm mb-4 line-clamp-3">
+            {post.excerpt || "Discover this amazing travel story."}
+          </p>
+          <div className="flex items-center gap-2 text-xs text-[var(--text-muted)]">
+            <span className="inline-flex items-center gap-2">
+              {post.author.image ? (
+                <img
+                  src={post.author.image}
+                  alt={post.author.name}
+                  className="h-5 w-5 rounded-full object-cover"
+                />
+              ) : (
+                <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[var(--surface)]/70 text-[9px] font-semibold text-[var(--text-tertiary)]">
+                  {getInitials(post.author.name)}
+                </span>
+              )}
+              <span>{post.author.name}</span>
+            </span>
+            <span>•</span>
+            <span>{post.readTimeMin} min read</span>
+          </div>
+        </article>
+      </Link>
     );
   };
 
@@ -538,109 +531,6 @@ export function FieldNotesGrid({
           ) : null}
         </section>
       ) : null}
-      {selected ? (() => {
-        const coverId = selected.media.find((item) => item.type === "PHOTO")?.id;
-        const hasCover = Boolean(coverId);
-        return (
-        <div
-          className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
-          onClick={() => {
-            setSelected(null);
-            setExpanded(false);
-          }}
-          role="dialog"
-          aria-modal="true"
-        >
-          <div
-            className={`bg-[var(--surface)] rounded-lg max-w-2xl w-full max-h-[80vh] overflow-hidden ${expanded ? 'max-h-[90vh]' : ''}`}
-            onClick={(event) => event.stopPropagation()}
-            style={{
-              ...(hasCover
-                ? {
-                    backgroundImage: `linear-gradient(180deg, rgba(10, 8, 6, 0.85), rgba(10, 8, 6, 0.55)), url(/api/media/${coverId})`,
-                    backgroundSize: "cover",
-                    backgroundPosition: "center",
-                  }
-                : undefined),
-            }}
-          >
-            <div className={`p-6 ${hasCover ? "text-white" : "text-[var(--text-primary)]"}`}>
-              <div className="flex items-start justify-between gap-4 mb-4">
-                <div>
-                  <p className={`text-xs uppercase tracking-[0.3em] ${hasCover ? "text-white/70" : ""}`} style={hasCover ? {} : { color: 'var(--text-muted)' }}>
-                    {selected.categories.map((item) => item.category.name).join(" / ")}
-                  </p>
-                  <h3
-                    className={`text-3xl font-semibold mt-2 ${hasCover ? "text-white" : ""}`}
-                    style={{ fontFamily: "var(--font-display)", color: hasCover ? 'white' : 'var(--text-primary)' }}
-                  >
-                    {selected.title}
-                  </h3>
-                  <p
-                    className={`text-xs uppercase tracking-[0.3em] mt-2 flex items-center gap-2 ${
-                      hasCover ? "text-white/70" : ""
-                    }`}
-                    style={hasCover ? {} : { color: 'var(--text-muted)' }}
-                  >
-                    {selected.author.image ? (
-                      <img
-                        src={selected.author.image}
-                        alt={selected.author.name}
-                        className="h-6 w-6 rounded-full object-cover"
-                      />
-                    ) : (
-                      <span
-                        className={`flex h-6 w-6 items-center justify-center rounded-full text-[10px] font-semibold ${
-                          hasCover ? "bg-white/20 text-white" : ""
-                        }`}
-                        style={hasCover ? {} : { background: 'var(--bg-gray-200)', color: 'var(--text-tertiary)' }}
-                      >
-                        {getInitials(selected.author.name)}
-                      </span>
-                    )}
-                    <span>
-                      {selected.author.name} · {selected.readTimeMin} min read
-                    </span>
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSelected(null);
-                    setExpanded(false);
-                  }}
-                  className={hasCover ? "text-white/70 hover:text-white" : "hover:opacity-70"}
-                  style={hasCover ? {} : { color: 'var(--text-muted)' }}
-                >
-                  ✕
-                </button>
-              </div>
-              <div
-                className={`text-sm ${
-                  hasCover ? (expanded ? "text-white/90" : "text-white/80") : ""
-                }`}
-                style={hasCover ? {} : { color: 'var(--text-tertiary)' }}
-              >
-                {expanded ? extractPreviewText(selected.content, 2000) : extractPreviewText(selected.content, 420)}
-              </div>
-              <div className="mt-6 flex flex-wrap gap-3">
-                <a
-                  className={`inline-flex items-center justify-center px-5 py-2 rounded-full text-[12px] font-semibold uppercase tracking-[0.2em] leading-none text-white ${
-                    hasCover
-                      ? "bg-white/10 border border-white/30 hover:bg-white/20"
-                      : "transition hover:opacity-90"
-                  }`}
-                  style={hasCover ? undefined : { background: 'var(--button-primary)', color: "#ffffff" }}
-                  href={`/essay/${selected.slug}`}
-                >
-                  Read full story
-                </a>
-              </div>
-            </div>
-          </div>
-        </div>
-      );
-      })() : null}
     </>
   );
 }
