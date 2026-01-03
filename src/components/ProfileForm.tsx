@@ -7,13 +7,15 @@ type ProfileFormProps = {
   initialName: string;
   initialImage?: string | null;
   email: string;
+  initialBio?: string;
 };
 
-export function ProfileForm({ initialName, initialImage, email }: ProfileFormProps) {
+export function ProfileForm({ initialName, initialImage, email, initialBio = "" }: ProfileFormProps) {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [name, setName] = useState(initialName);
   const [imageValue, setImageValue] = useState(initialImage ?? "");
+  const [bio, setBio] = useState(initialBio);
   const [status, setStatus] = useState("");
   const [saving, setSaving] = useState(false);
 
@@ -47,6 +49,7 @@ export function ProfileForm({ initialName, initialImage, email }: ProfileFormPro
       body: JSON.stringify({
         name: name.trim(),
         image: imageValue || null,
+        bio: bio.trim(),
       }),
     });
 
@@ -119,6 +122,16 @@ export function ProfileForm({ initialName, initialImage, email }: ProfileFormPro
           />
         </label>
         <label className="grid gap-2 text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
+          Bio
+          <textarea
+            value={bio}
+            onChange={(event) => setBio(event.target.value)}
+            className="editor-input"
+            rows={4}
+            placeholder="Add a short bio for your author profile."
+          />
+        </label>
+        <label className="grid gap-2 text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
           Email
           <input value={email} readOnly className="editor-input" style={{ backgroundColor: 'var(--bg-gray-50)' }} />
         </label>
@@ -140,6 +153,7 @@ export function ProfileForm({ initialName, initialImage, email }: ProfileFormPro
           onClick={() => {
             setName(initialName);
             setImageValue(initialImage ?? "");
+            setBio(initialBio);
             setStatus("");
           }}
         >

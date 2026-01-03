@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { EditorAutosave } from "@/components/EditorAutosave";
+import { EditorPreview } from "@/components/EditorPreview";
 
 type ValidationItem = {
   label: string;
@@ -15,6 +16,7 @@ type AdvancedPublishBarProps = {
   formId: string;
   draftKey: string;
   fallbackDraftKeys?: string[];
+  showPreview?: boolean;
 };
 
 function collectValidations(formId: string): ValidationItem[] {
@@ -53,15 +55,21 @@ function collectValidations(formId: string): ValidationItem[] {
   ];
 }
 
-export function AdvancedPublishBar({ role, formId, draftKey, fallbackDraftKeys = [] }: AdvancedPublishBarProps) {
+export function AdvancedPublishBar({
+  role,
+  formId,
+  draftKey,
+  fallbackDraftKeys = [],
+  showPreview = true,
+}: AdvancedPublishBarProps) {
   const [showModal, setShowModal] = useState(false);
   const [validations, setValidations] = useState<ValidationItem[]>([]);
   const [savingStatus, setSavingStatus] = useState(false);
   const [statusError, setStatusError] = useState("");
   const isAdmin = role === "ADMIN";
-  const primaryLabel = isAdmin ? "Ready for Review" : "Ready for Review";
+  const primaryLabel = isAdmin ? "Publish" : "Ready for Review";
 
-  const statusValue = useMemo(() => (isAdmin ? "PENDING" : "PENDING"), [isAdmin]);
+  const statusValue = useMemo(() => (isAdmin ? "APPROVED" : "PENDING"), [isAdmin]);
 
   const collectPayload = () => {
     const form = document.getElementById(formId) as HTMLFormElement | null;
@@ -120,16 +128,9 @@ export function AdvancedPublishBar({ role, formId, draftKey, fallbackDraftKeys =
       <EditorAutosave
         draftKey={draftKey}
         fallbackDraftKeys={fallbackDraftKeys}
-        actions={({ autoSaveEnabled }) => (
+        actions={() => (
           <>
-            <button
-              type="button"
-              className={`editor-publish-button editor-publish-secondary ${autoSaveEnabled ? "" : "is-attention"} ${savingStatus ? "is-saving" : ""}`}
-              onClick={() => saveStatus("DRAFT")}
-              disabled={savingStatus}
-            >
-              {savingStatus ? "Saving..." : "Save as Draft"}
-            </button>
+            {showPreview ? <EditorPreview formId={formId} /> : null}
             <button
               type="button"
               className={`editor-publish-button editor-publish-primary ${savingStatus ? "is-saving" : ""}`}
@@ -152,7 +153,7 @@ export function AdvancedPublishBar({ role, formId, draftKey, fallbackDraftKeys =
           <div className="editor-publish-backdrop" onClick={() => setShowModal(false)} />
           <div className="editor-publish-panel" role="dialog" aria-modal="true">
             <div className="editor-publish-header">
-              <h3>Ready for review?</h3>
+            <h3>{isAdmin ? "Publish now?" : "Ready for review?"}</h3>
               <button type="button" onClick={() => setShowModal(false)} className="editor-publish-close">
                 ×
               </button>
@@ -181,7 +182,7 @@ export function AdvancedPublishBar({ role, formId, draftKey, fallbackDraftKeys =
                 }}
                 disabled={savingStatus}
               >
-                {savingStatus ? "Saving..." : "Ready for Review"}
+                {savingStatus ? "Saving..." : primaryLabel}
               </button>
             </div>
           </div>

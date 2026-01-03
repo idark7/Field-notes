@@ -437,6 +437,7 @@ export default async function EssayPage({ params }: { params: Promise<{ slug: st
     ? sortedMedia.filter((item) => item.id !== heroMedia.id)
     : sortedMedia;
   const authorImage = post.author.image;
+  const authorBio = post.author.bio?.trim() || "";
   const authorInitials = post.author.name
     .split(" ")
     .map((part) => part[0])
@@ -679,9 +680,11 @@ export default async function EssayPage({ params }: { params: Promise<{ slug: st
                 <p className="text-[20px] leading-[28px] tracking-[-0.45px]" style={{ color: 'var(--text-primary)' }}>
                   Written by {post.author.name}
                 </p>
-                <p className="mt-2 text-[16px] leading-[26px] tracking-[-0.31px]" style={{ color: 'var(--text-tertiary)' }}>
-                  Adventure journalist and photographer based in Denver. Sarah has trekked across six continents and contributes to National Geographic and Outside Magazine.
-                </p>
+                {authorBio ? (
+                  <p className="mt-2 text-[16px] leading-[26px] tracking-[-0.31px]" style={{ color: 'var(--text-tertiary)' }}>
+                    {authorBio}
+                  </p>
+                ) : null}
                 <button
                   type="button"
                   className="mt-4 text-[16px] font-medium tracking-[-0.31px] text-[#f54900]"

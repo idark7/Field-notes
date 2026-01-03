@@ -9,7 +9,6 @@ import { TiptapEditor } from "@/components/TiptapEditor";
 import { AdvancedEditorShell } from "@/components/AdvancedEditorShell";
 import { SeoFields } from "@/components/SeoFields";
 import { AdvancedPublishBar } from "@/components/AdvancedPublishBar";
-import { EditorPreview } from "@/components/EditorPreview";
 
 async function createPost(formData: FormData) {
   "use server";
@@ -180,16 +179,6 @@ export default async function AdvancedEditorPage() {
     <main className="min-h-screen pb-20" style={{ background: "var(--page-gradient)" }}>
       <AdvancedEditorShell />
       <section className="mx-auto w-full max-w-[1280px] px-6 pt-16">
-        <div className="flex flex-wrap items-center justify-end gap-3">
-          <EditorPreview formId="editor-form" />
-          <Link
-            href="/editor/basic"
-            className="rounded-full border border-[color:var(--border)] px-5 py-2 text-sm font-semibold text-[color:var(--foreground)] transition hover:border-[color:var(--accent)] hover:text-[color:var(--accent)]"
-          >
-            Use basic editor
-          </Link>
-        </div>
-
         <form id="editor-form" action={createPost} className="mt-10 grid gap-10">
           <AdvancedPublishBar
             role={user.role}

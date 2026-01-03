@@ -10,7 +10,7 @@ export default async function ProfilePage() {
 
   return (
     <main className="page-shell py-16">
-      <ProfileForm initialName={user.name} initialImage={user.image} email={user.email} />
+      <ProfileForm initialName={user.name} initialImage={user.image} email={user.email} initialBio={user.bio ?? ""} />
     </main>
   );
 }

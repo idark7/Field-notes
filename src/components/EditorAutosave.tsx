@@ -13,10 +13,10 @@ type EditorAutosaveProps = {
 export function EditorAutosave({ draftKey, fallbackDraftKeys = [], actions }: EditorAutosaveProps) {
   const storageKey = `gdt-draft-${draftKey}`;
   const [lastSaved, setLastSaved] = useState<string | null>(null);
-  const [autoSaveEnabled, setAutoSaveEnabled] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
   const debounceRef = useRef<number | null>(null);
+  const autoSaveEnabled = true;
 
   useEffect(() => {
     let saved = localStorage.getItem(storageKey);
@@ -67,7 +67,6 @@ export function EditorAutosave({ draftKey, fallbackDraftKeys = [], actions }: Ed
       const payload = { values, lastSaved: Date.now() };
       localStorage.setItem(storageKey, JSON.stringify(payload));
       setLastSaved(new Date(payload.lastSaved).toLocaleTimeString());
-      if (!autoSaveEnabled) return;
       if (debounceRef.current) {
         window.clearTimeout(debounceRef.current);
       }
@@ -116,7 +115,7 @@ export function EditorAutosave({ draftKey, fallbackDraftKeys = [], actions }: Ed
         window.clearTimeout(debounceRef.current);
       }
     };
-  }, [storageKey, fallbackDraftKeys.join("|"), autoSaveEnabled]);
+  }, [storageKey, fallbackDraftKeys.join("|")]);
 
   const resolvedActions =
     typeof actions === "function" ? actions({ autoSaveEnabled, saving, lastSaved }) : actions;
@@ -125,20 +124,9 @@ export function EditorAutosave({ draftKey, fallbackDraftKeys = [], actions }: Ed
     <>
       <div className="flex flex-wrap items-center justify-between gap-3 text-xs uppercase tracking-[0.3em]" style={{ color: "var(--text-muted)" }}>
         <span>
-          {autoSaveEnabled ? (lastSaved ? `Saved ${lastSaved}` : "Autosave enabled") : "Autosave paused"}
+          {saving ? "auto-save in progress" : lastSaved ? "auto-saved" : "auto-save"}
         </span>
         <div className="flex flex-wrap items-center gap-2">
-          <button
-            type="button"
-            onClick={() => setAutoSaveEnabled((value) => !value)}
-            className="rounded-full border px-3 py-1 text-[10px] uppercase tracking-[0.25em]"
-            style={{
-              borderColor: autoSaveEnabled ? "var(--accent)" : "var(--border-gray)",
-              color: autoSaveEnabled ? "var(--accent)" : "var(--text-muted)",
-            }}
-          >
-            {autoSaveEnabled ? "Auto-save on" : "Auto-save off"}
-          </button>
           {resolvedActions}
         </div>
       </div>

@@ -9,7 +9,6 @@ import { TiptapEditor } from "@/components/TiptapEditor";
 import { AdvancedEditorShell } from "@/components/AdvancedEditorShell";
 import { SeoFields } from "@/components/SeoFields";
 import { AdvancedPublishBar } from "@/components/AdvancedPublishBar";
-import { EditorPreview } from "@/components/EditorPreview";
 
 async function updatePost(formData: FormData) {
   "use server";
@@ -190,15 +189,6 @@ export default async function AdvancedEditPage({ params }: { params: Promise<{ i
             <h2 className="text-2xl font-semibold" style={{ fontFamily: "var(--font-display)" }}>
               Update your field note
             </h2>
-          </div>
-          <div className="flex flex-wrap items-center gap-3">
-            <EditorPreview formId="editor-form" />
-            <Link
-              href="/editor/basic"
-              className="rounded-full border border-[color:var(--border)] px-5 py-2 text-sm font-semibold text-[color:var(--foreground)] transition hover:border-[color:var(--accent)] hover:text-[color:var(--accent)]"
-            >
-              Use basic editor
-            </Link>
           </div>
         </div>
 

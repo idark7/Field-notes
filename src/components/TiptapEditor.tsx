@@ -296,7 +296,7 @@ export function TiptapEditor({
       setToolbarVisible(true);
       requestAnimationFrame(updatePosition);
       if (ready && editor && editor.isEmpty && !hasDefaultHeading.current) {
-        editor.chain().focus().setHeading({ level: 1 }).run();
+        editor.chain().focus().setParagraph().run();
         hasDefaultHeading.current = true;
       }
     };
@@ -525,7 +525,7 @@ export function TiptapEditor({
             ? "h5"
             : activeStates.h6
               ? "h6"
-              : "h1";
+              : "text";
   const toolbarDisabled = !titleReady || !editor;
   const fontValue = editor?.getAttributes("fontFamily")?.family ?? "var(--font-body)";
 
@@ -936,7 +936,9 @@ export function TiptapEditor({
             onChange={(event) => {
               const value = event.target.value;
               if (!editor) return;
-              if (value === "h1") {
+              if (value === "text") {
+                editor.chain().focus().setParagraph().run();
+              } else if (value === "h1") {
                 editor.chain().focus().setHeading({ level: 1 }).run();
               } else if (value === "h2") {
                 editor.chain().focus().setHeading({ level: 2 }).run();
@@ -952,6 +954,7 @@ export function TiptapEditor({
             }}
             disabled={toolbarDisabled}
           >
+            <option value="text">Text</option>
             <option value="h1">H1</option>
             <option value="h2">H2</option>
             <option value="h3">H3</option>
@@ -968,7 +971,14 @@ export function TiptapEditor({
           aria-label="Bullet list"
           disabled={toolbarDisabled}
         >
-          ••
+          <svg aria-hidden viewBox="0 0 20 20" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.7">
+            <circle cx="4" cy="5" r="1.5" fill="currentColor" stroke="none" />
+            <circle cx="4" cy="10" r="1.5" fill="currentColor" stroke="none" />
+            <circle cx="4" cy="15" r="1.5" fill="currentColor" stroke="none" />
+            <path d="M8 5h8" />
+            <path d="M8 10h8" />
+            <path d="M8 15h8" />
+          </svg>
         </button>
         <button
           type="button"
@@ -978,7 +988,15 @@ export function TiptapEditor({
           aria-label="Ordered list"
           disabled={toolbarDisabled}
         >
-          1.
+          <svg aria-hidden viewBox="0 0 20 20" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.7">
+            <path d="M3 6h2" />
+            <path d="M4 4v4" />
+            <path d="M3 11h2" />
+            <path d="M3 14h2l-2 2h2" />
+            <path d="M8 5h8" />
+            <path d="M8 10h8" />
+            <path d="M8 15h8" />
+          </svg>
         </button>
         <button
           type="button"
