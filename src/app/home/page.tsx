@@ -150,7 +150,7 @@ export default async function FieldNotesPage() {
       </section>
 
       {featured ? (
-        <section id="featured" className="py-16">
+        <section id="featured" className="py-16" style={{ scrollMarginTop: "140px" }}>
           <div className="mx-auto max-w-[1232px] px-6">
             <p className="text-[14px] uppercase tracking-[0.55px]" style={{ color: 'var(--text-muted)' }}>
               Featured Essay

@@ -11,6 +11,7 @@ import { SiteNav } from "@/components/SiteNav";
 import { ThemeInitializer } from "@/components/ThemeInitializer";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { UserMenu } from "@/components/UserMenu";
+import { MobileMenu } from "@/components/MobileMenu";
 
 const displayFont = Playfair_Display({
   variable: "--font-display",
@@ -196,56 +197,77 @@ export default async function RootLayout({
                   </div>
                 )}
               </div>
-              <details className="relative md:hidden">
-                <summary className="list-none [&::-webkit-details-marker]:hidden">
-                  <span className="flex h-10 w-10 items-center justify-center rounded-full" style={{
-                    border: '1px solid var(--border-gray)',
-                    color: 'var(--text-primary)'
-                  }}>
-                    <svg aria-hidden viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <MobileMenu
+                summary={
+                  <span
+                    className="flex h-10 w-10 items-center justify-center rounded-full"
+                    style={{
+                      border: "1px solid var(--border-gray)",
+                      color: "var(--text-primary)",
+                    }}
+                  >
+                    <svg
+                      aria-hidden
+                      viewBox="0 0 24 24"
+                      className="h-5 w-5"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
                       <path d="M4 6h16" />
                       <path d="M4 12h16" />
                       <path d="M4 18h16" />
                     </svg>
                   </span>
-                </summary>
-                <div className="absolute right-0 mt-3 w-64 rounded-2xl p-4 shadow-lg" style={{
-                  border: '1px solid var(--border-gray)',
-                  background: 'var(--bg-white)',
-                  color: 'var(--text-primary)'
-                }}>
-                  <SiteNav className="grid gap-3 text-[16px]" />
-                <div className="mt-4 grid gap-3 pt-4 text-[14px]" style={{
-                  borderTop: '1px solid var(--border-gray)',
-                  color: 'var(--text-secondary)'
-                }}>
+                }
+                panelClassName="absolute right-0 mt-3 w-64 rounded-2xl p-4 shadow-lg"
+                panelStyle={{
+                  border: "1px solid var(--border-gray)",
+                  background: "var(--bg-white)",
+                  color: "var(--text-primary)",
+                }}
+              >
+                <SiteNav className="grid gap-3 text-[16px]" />
+                <div
+                  className="mt-4 grid gap-3 pt-4 text-[14px]"
+                  style={{
+                    borderTop: "1px solid var(--border-gray)",
+                    color: "var(--text-secondary)",
+                  }}
+                >
                   {user ? (
                     <>
-                        <div className="flex items-center gap-3">
-                          {user.image ? (
-                            <img src={user.image} alt={user.name} className="h-9 w-9 rounded-full object-cover" />
-                          ) : (
-                            <span className="flex h-9 w-9 items-center justify-center rounded-full text-[12px] font-semibold" style={{
-                              background: 'var(--bg-gray-100)',
-                              color: 'var(--text-tertiary)'
-                            }}>
-                              {getInitials(user.name)}
-                            </span>
-                          )}
-                          <div>
-                            <p className="text-[14px] font-semibold" style={{ color: 'var(--text-primary)' }}>{user.name}</p>
-                            <p className="text-[12px]" style={{ color: 'var(--text-muted)' }}>Signed in</p>
-                          </div>
+                      <div className="flex items-center gap-3">
+                        {user.image ? (
+                          <img src={user.image} alt={user.name} className="h-9 w-9 rounded-full object-cover" />
+                        ) : (
+                          <span
+                            className="flex h-9 w-9 items-center justify-center rounded-full text-[12px] font-semibold"
+                            style={{
+                              background: "var(--bg-gray-100)",
+                              color: "var(--text-tertiary)",
+                            }}
+                          >
+                            {getInitials(user.name)}
+                          </span>
+                        )}
+                        <div>
+                          <p className="text-[14px] font-semibold" style={{ color: "var(--text-primary)" }}>
+                            {user.name}
+                          </p>
+                          <p className="text-[12px]" style={{ color: "var(--text-muted)" }}>
+                            Signed in
+                          </p>
                         </div>
-                        <Link href="/profile">Profile</Link>
-                        <Link href={user.role === "ADMIN" ? "/admin" : "/editor?view=stories"}>
-                          {user.role === "ADMIN" ? "Admin dashboard" : "My stories"}
-                        </Link>
-                        <LogoutButton className="text-left" style={{ color: 'var(--text-secondary)' }} />
-                        <NotificationsBell
-                          items={notificationItems}
-                          summary={notificationSummary}
-                        />
+                      </div>
+                      <Link href="/profile">Profile</Link>
+                      <Link href={user.role === "ADMIN" ? "/admin" : "/editor/basic?view=stories#my-stories"}>
+                        {user.role === "ADMIN" ? "Admin dashboard" : "My stories"}
+                      </Link>
+                      <LogoutButton className="text-left" style={{ color: "var(--text-secondary)" }} />
+                      <NotificationsBell items={notificationItems} summary={notificationSummary} />
                     </>
                   ) : (
                     <>
@@ -256,26 +278,25 @@ export default async function RootLayout({
                     href="/field-notes?focus=1"
                     className="flex h-10 w-full items-center justify-center rounded-full text-[14px] font-medium"
                     style={{
-                      border: '1px solid var(--border-gray)',
-                      color: 'var(--text-primary)'
+                      border: "1px solid var(--border-gray)",
+                      color: "var(--text-primary)",
                     }}
                   >
                     Search
                   </Link>
                   <ThemeToggle />
                   <Link
-                      href="/editor"
-                      className="flex h-10 items-center justify-center rounded-full px-4 text-[14px] font-medium"
-                      style={{
-                        background: 'var(--button-primary)',
-                        color: '#ffffff'
-                      }}
-                    >
-                      Write a Note
-                    </Link>
-                  </div>
+                    href="/editor"
+                    className="flex h-10 items-center justify-center rounded-full px-4 text-[14px] font-medium"
+                    style={{
+                      background: "var(--button-primary)",
+                      color: "#ffffff",
+                    }}
+                  >
+                    Write a Note
+                  </Link>
                 </div>
-              </details>
+              </MobileMenu>
             </div>
           </div>
         </header>

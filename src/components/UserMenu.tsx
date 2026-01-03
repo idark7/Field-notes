@@ -134,7 +134,7 @@ export function UserMenu({ user, notifications, notificationSummary, notificatio
             )}
             <Link
               className="user-menu-item"
-              href={user.role === "ADMIN" ? "/admin" : "/editor?view=stories"}
+            href={user.role === "ADMIN" ? "/admin" : "/editor/basic?view=stories#my-stories"}
               onClick={closeMenu}
             >
               <span className="user-menu-icon" aria-hidden>

@@ -467,8 +467,8 @@ export function FieldNotesGrid({
               </div>
               <div className="field-notes-panel-section">
                 <div className="flex justify-end">
-                  <Link href="/editor?view=stories" className="field-notes-cta field-notes-cta-small">
-                  View My Stories
+                  <Link href="/editor/basic?view=stories#my-stories" className="field-notes-cta field-notes-cta-small">
+                    View My Stories
                   </Link>
                 </div>
               </div>

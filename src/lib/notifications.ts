@@ -161,7 +161,7 @@ export async function getNotificationsForUser(
           title: note.post.title,
           message: note.text,
           createdAt: note.createdAt,
-          href: `/editor/edit/${note.postId}`,
+          href: `/editor/advanced/edit/${note.postId}`,
         }))
       );
     }
@@ -181,7 +181,7 @@ export async function getNotificationsForUser(
           title: comment.post.title,
           message: comment.text,
           createdAt: comment.createdAt,
-          href: `/essay/${comment.post.slug}`,
+          href: `/editor/advanced/edit/${comment.postId}`,
         }))
       );
     }
@@ -295,7 +295,7 @@ export async function getNotificationDetail(user: { id: string; role: string }, 
         title: note.post.title,
         message: note.text,
         createdAt: note.createdAt,
-        href: `/editor/edit/${note.postId}`,
+        href: `/editor/advanced/edit/${note.postId}`,
       } satisfies NotificationListItem;
     }
     case "admin-comments": {
@@ -310,7 +310,7 @@ export async function getNotificationDetail(user: { id: string; role: string }, 
         title: comment.post.title,
         message: comment.text,
         createdAt: comment.createdAt,
-        href: `/essay/${comment.post.slug}`,
+        href: `/editor/advanced/edit/${comment.postId}`,
       } satisfies NotificationListItem;
     }
     default:

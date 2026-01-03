@@ -71,7 +71,7 @@ export default async function NotificationsPage({
             notifications.map((item) => (
               <Link
                 key={item.id}
-                href={`/notifications/${item.id}`}
+                href={item.href}
                 className="section-card p-6 transition hover:opacity-80"
               >
                 <div className="flex flex-wrap items-center justify-between gap-3">
@@ -91,7 +91,7 @@ export default async function NotificationsPage({
                   {item.message}
                 </p>
                 <span className="mt-4 inline-flex text-xs uppercase tracking-[0.3em]" style={{ color: "var(--text-accent)" }}>
-                  View details →
+                  Open item →
                 </span>
               </Link>
             ))

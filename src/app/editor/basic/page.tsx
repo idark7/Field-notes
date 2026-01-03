@@ -204,9 +204,9 @@ export default async function EditorPage({
   };
 
   const tabs = [
+    { id: "published", label: "Published", count: approvedCount },
     { id: "drafts", label: "Drafts", count: draftCount },
     { id: "review", label: "Under review", count: pendingCount },
-    { id: "published", label: "Published", count: approvedCount },
     { id: "unpublished", label: "Unpublished", count: rejectedCount + needsChangesCount },
   ];
 
@@ -219,6 +219,29 @@ export default async function EditorPage({
     include: { adminNotes: { orderBy: { createdAt: "desc" } } },
     orderBy: { createdAt: "desc" },
   });
+
+  const [publishedStories, draftStories] = showStoriesOnly
+    ? await Promise.all([
+        prisma.post.findMany({
+          where: { authorId: user.id, status: "APPROVED" },
+          include: { adminNotes: { orderBy: { createdAt: "desc" } } },
+          orderBy: { createdAt: "desc" },
+        }),
+        prisma.post.findMany({
+          where: { authorId: user.id, status: "DRAFT" },
+          include: { adminNotes: { orderBy: { createdAt: "desc" } } },
+          orderBy: { createdAt: "desc" },
+        }),
+      ])
+    : [[], []];
+
+  const storyTabs = [
+    { id: "published", label: "Published", count: approvedCount },
+    { id: "drafts", label: "Drafts", count: draftCount },
+  ];
+  const activeStoryTab = showStoriesOnly && (requestedTab === "published" || requestedTab === "drafts")
+    ? requestedTab
+    : "published";
 
   function formatStatus(status: string) {
     if (status === "PENDING") return "Under review";
@@ -352,11 +375,11 @@ export default async function EditorPage({
             My stories
           </p>
           <div className="admin-tabs mt-6">
-            {tabs.map((tab) => (
+            {storyTabs.map((tab) => (
               <Link
                 key={tab.id}
-                href={showStoriesOnly ? `/editor?view=stories&tab=${tab.id}` : `/editor?tab=${tab.id}`}
-                className={`admin-tab ${activeTab === tab.id ? "admin-tab-active" : ""}`}
+                href={`/editor/basic?view=stories&tab=${tab.id}#my-stories`}
+                className={`admin-tab ${activeStoryTab === tab.id ? "admin-tab-active" : ""}`}
               >
                 <span>{tab.label}</span>
                 <span className="admin-tab-count">{tab.count}</span>
@@ -364,12 +387,12 @@ export default async function EditorPage({
             ))}
           </div>
           <div className="mt-6 grid gap-4">
-            {submissions.length === 0 ? (
+            {(activeStoryTab === "published" ? publishedStories : draftStories).length === 0 ? (
               <p className="text-sm text-[color:var(--muted)]">
-                No stories in this view yet.
+                {activeStoryTab === "published" ? "No published stories yet." : "No drafts yet."}
               </p>
             ) : (
-              submissions.map((post) => (
+              (activeStoryTab === "published" ? publishedStories : draftStories).map((post) => (
                 <div key={post.id} className="border border-[color:var(--border)] rounded-2xl p-4">
                   <div className="flex items-start justify-between gap-6">
                     <div className="flex-1">
@@ -394,32 +417,26 @@ export default async function EditorPage({
                   <div className="mt-4 flex flex-wrap items-center gap-3">
                     {post.adminNotes.length > 0 ? (
                       <FeedbackModal
-                      notes={post.adminNotes.map((note) => ({
-                        id: note.id,
-                        postId: post.id,
-                        postTitle: post.title,
-                        status: post.status,
-                        note: note.text,
-                        revision: note.revision ?? post.revision,
-                        createdAt: note.createdAt.toISOString(),
-                      }))}
+                        notes={post.adminNotes.map((note) => ({
+                          id: note.id,
+                          postId: post.id,
+                          postTitle: post.title,
+                          status: post.status,
+                          note: note.text,
+                          revision: note.revision ?? post.revision,
+                          createdAt: note.createdAt.toISOString(),
+                        }))}
                         label="View feedback"
                         title={`Feedback for ${post.title}`}
                         className="feedback-button-outline"
                       />
                     ) : null}
-                    {post.status === "PENDING" && user.role !== "ADMIN" ? (
-                      <span className="text-xs uppercase tracking-[0.3em] text-[color:var(--muted)]">
-                        Locked
-                      </span>
-                    ) : (
-                      <a
-                        href={`/editor/edit/${post.id}`}
-                        className="text-xs uppercase tracking-[0.3em] text-[color:var(--accent)]"
-                      >
-                        {user.role === "ADMIN" && post.authorId === user.id ? "Edit story" : "Edit and resubmit"}
-                      </a>
-                    )}
+                    <a
+                      href={`/editor/advanced/edit/${post.id}`}
+                      className="text-xs uppercase tracking-[0.3em] text-[color:var(--accent)]"
+                    >
+                      {user.role === "ADMIN" && post.authorId === user.id ? "Edit story" : "Edit and resubmit"}
+                    </a>
                   </div>
                 </div>
               ))
